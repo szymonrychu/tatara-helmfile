@@ -1,0 +1,12 @@
+# Allowlist for SOPS-encrypted or known-safe paths.
+# See https://github.com/gitleaks/gitleaks#allowlist
+title = "helmfile gitleaks config"
+
+[allowlist]
+  description = "SOPS-encrypted secret files"
+  paths = [
+    '''raw/.*\.secrets\.yaml''',
+    '''.*\.secret\..*\.yaml''',
+    '''default\.secrets\.yaml''',
+    '''kubeconfig'''
+  ]

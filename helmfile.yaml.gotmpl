@@ -1,0 +1,10 @@
+helmfiles:
+  - path: helmfiles/tatara/helmfile.yaml.gotmpl
+
+environments:
+  default: {}
+
+helmDefaults:
+  wait: true
+  syncArgs:
+    - --rollback-on-failure

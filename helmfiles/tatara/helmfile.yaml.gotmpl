@@ -1,0 +1,42 @@
+environments:
+  default: {}
+
+---
+
+helmDefaults:
+  wait: true
+  syncArgs:
+    - --rollback-on-failure
+
+templates:
+  default: &default
+    missingFileHandler: Warn
+    hooks:
+      - events:
+          - prepare
+          - presync
+          - postsync
+        showlogs: true
+        command: ../../.hook.sh
+        args:
+          - '{{`{{ exec "pwd" (list) }}`}}'
+          - '{{`{{ .Event.Name }}`}}'
+          - '{{`{{ .Release.Name }}`}}'
+          - '{{`{{ .Release.Namespace }}`}}'
+          - '{{`{{ .Release.Version }}`}}'
+    values:
+      - values/{{`{{ .Release.Name }}`}}/common.yaml
+      - values/{{`{{ .Release.Name }}`}}/{{`{{ .Environment.Name }}`}}.yaml
+    secrets:
+      - values/{{`{{ .Release.Name }}`}}/{{`{{ .Environment.Name }}`}}.secrets.yaml
+
+releases:
+  - name: tatara-memory
+    chart: oci://harbor.szymonrichert.pl/charts/tatara-memory
+    version: "0.1.4"  # tatara-memory
+    namespace: tatara
+    createNamespace: true
+    labels:
+      purpose: tatara
+      application: tatara-memory
+    <<: *default

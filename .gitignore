@@ -1,0 +1,4 @@
+.envrc
+*.swp
+.DS_Store
+.worktrees/

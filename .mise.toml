@@ -1,0 +1,24 @@
+[tools]
+terraform = '1.15.4'
+helm = '4.2.0'
+sops = '3.13.1'
+helmfile = '1.5.2'
+pre-commit = '4.6.0'
+kubectl = '1.36.1'
+kubectx = '0.11.0'
+stern = '1.34.0'
+kustomize = "latest"
+
+[tool_alias]
+kubectl = "aqua:kubernetes/kubernetes/kubectl"
+kubectx = "aqua:ahmetb/kubectx"
+stern = "aqua:stern/stern"
+
+[hooks]
+postinstall = [
+    "helm plugin install https://github.com/jkroepke/helm-secrets/releases/download/v4.7.4/secrets-4.7.4.tgz --verify=false 2> /dev/null || true",
+    "helm plugin install https://github.com/jkroepke/helm-secrets/releases/download/v4.7.4/secrets-getter-4.7.4.tgz --verify=false 2> /dev/null || true",
+    "helm plugin install https://github.com/jkroepke/helm-secrets/releases/download/v4.7.4/secrets-post-renderer-4.7.4.tgz --verify=false 2> /dev/null || true",
+    "helm plugin install https://github.com/databus23/helm-diff --verify=false 2> /dev/null || true",
+    "pre-commit install || true",
+]
