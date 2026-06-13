@@ -11,9 +11,10 @@ jobs:
       contents: read
       pull-requests: write
     env:
-      # Secrets are op-sourced from the ~/Documents/infra 1Password workspace
-      # (op_env_dotfile): GH secret names match the op var names 1:1. Harbor
-      # uses the in-cluster kubernetes robot.
+      # Harbor uses the in-cluster kubernetes robot (robot$kubernetes) to pull the
+      # OCI charts. The GH secret holds the LIVE working token (sourced from the
+      # gitlab-runner ns `regcred`, which builds/pushes daily); the op .env copy
+      # of this token was stale. GPG key is op-sourced (sops decrypt).
       GPG_PRIVATE_RSA_B64: ${{ secrets.GPG_PRIVATE_RSA_B64 }}
       HARBOR_USERNAME: ${{ secrets.HARBOR_ROBOT_KUBERNETES_USERNAME }}
       HARBOR_PASSWORD: ${{ secrets.HARBOR_ROBOT_KUBERNETES_PASSWORD }}
@@ -38,7 +39,7 @@ jobs:
       - name: harbor OCI login
         run: |
           eval "$($HOME/.local/bin/mise activate bash)"
-          helm registry login harbor.szymonrichert.pl -u "$HARBOR_USERNAME" -p "$HARBOR_PASSWORD"
+          printf '%s' "$HARBOR_PASSWORD" | helm registry login harbor.szymonrichert.pl -u "$HARBOR_USERNAME" --password-stdin
 
       - name: helmfile diff
         id: diff
