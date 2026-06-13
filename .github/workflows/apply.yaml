@@ -41,4 +41,4 @@ jobs:
       - name: helmfile apply
         run: |
           eval "$($HOME/.local/bin/mise activate bash)"
-          helmfile -e default apply
+          helmfile -e default apply --suppress-secrets
