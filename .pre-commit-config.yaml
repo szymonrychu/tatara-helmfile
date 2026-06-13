@@ -19,7 +19,7 @@ repos:
     rev: v1.35.1
     hooks:
       - id: yamllint
-        args: [-d, '{extends: default, rules: {line-length: {max: 320}, document-start: disable}}']
+        args: [-d, '{extends: default, rules: {line-length: {max: 320}, document-start: disable, truthy: {allowed-values: [''true'', ''false'', ''on'', ''off'']}}}']
         exclude: '\.gotmpl$|\.secrets\.yaml$'
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.0.0

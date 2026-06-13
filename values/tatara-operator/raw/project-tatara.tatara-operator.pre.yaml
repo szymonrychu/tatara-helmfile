@@ -26,9 +26,9 @@ spec:
         maxOpenProposals: 3
         schedule: 0 * * * *
         sources:
-        - docs
-        - memory
-        - internet
+          - docs
+          - memory
+          - internet
       # Per-repo backpressured brainstorm (hourly): skip a repo with >= 3 open
       # unapproved agent proposals, else start one brainstorm. maxPerCycle is
       # retired (rate is fixed 1/repo/cycle). CRD carries maxOpenProposals.
