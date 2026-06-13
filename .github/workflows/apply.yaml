@@ -46,3 +46,14 @@ jobs:
         run: |
           eval "$($HOME/.local/bin/mise activate bash)"
           helmfile -e default apply --suppress-secrets
+
+      # The Project + Repository enrollment CRs are applied by the helmfile
+      # presync hook ONLY when a release actually syncs. A no-op apply (releases
+      # already at target, e.g. the initial adoption) skips sync -> the hook does
+      # not fire -> the CRs are not reconciled. Apply them explicitly here so
+      # enrollment is deterministic on every run (idempotent; in-cluster SA).
+      # These are non-secret raw manifests; the sops values secret is separate.
+      - name: reconcile enrollment CRs (Project + Repository)
+        run: |
+          eval "$($HOME/.local/bin/mise activate bash)"
+          kubectl apply -f values/tatara-operator/raw/
