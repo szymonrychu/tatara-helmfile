@@ -1,0 +1,60 @@
+name: diff
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  helmfile-diff:
+    runs-on: arc-runner-tatara-helmfile
+    env:
+      GPG_PRIVATE_RSA_B64: ${{ secrets.GPG_PRIVATE_RSA_B64 }}
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install mise
+        run: |
+          curl -fsSL https://mise.run | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: mise install (helm/helmfile/kubectl/sops + plugins)
+        run: |
+          eval "$($HOME/.local/bin/mise activate bash)"
+          mise install
+          mise reshim
+
+      - name: import GPG key (sops decrypt)
+        run: |
+          echo "$GPG_PRIVATE_RSA_B64" | base64 -d | gpg --batch --import
+
+      - name: harbor OCI login
+        run: |
+          eval "$($HOME/.local/bin/mise activate bash)"
+          helm registry login harbor.szymonrichert.pl -u "$HARBOR_USERNAME" -p "$HARBOR_PASSWORD"
+
+      - name: helmfile diff
+        id: diff
+        continue-on-error: true
+        run: |
+          eval "$($HOME/.local/bin/mise activate bash)"
+          set +e
+          helmfile -e default diff --detailed-exitcode 2>&1 | tee diff.log
+          set -e
+          {
+            echo 'output<<DIFF_EOF'
+            sed 's/\x1b\[[0-9;]*m//g' diff.log
+            echo 'DIFF_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: tatara-helmfile-diff
+          recreate: true
+          message: |
+            ## helmfile diff (`-e default`)
+
+            ```diff
+            ${{ steps.diff.outputs.output }}
+            ```

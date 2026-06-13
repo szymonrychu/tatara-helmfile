@@ -1,0 +1,6 @@
+# Cluster-specific values the chart does not bake (rule 14). The operator chart
+# has no subcharts, so the only passthrough is the image tag pin. The regcred
+# pull secret reaches the manager Deployment from the bucket values/common.yaml
+# (imagePullSecrets), same as the other tatara releases.
+image:
+  tag: "7d45bd9"

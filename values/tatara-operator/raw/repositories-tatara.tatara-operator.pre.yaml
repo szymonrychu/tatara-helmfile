@@ -1,0 +1,93 @@
+# Repository CRs enrolled in the tatara Project. The operator's
+# projectReposForScan discovers these on the next cron and begins
+# issue/MR scans + scheduled re-ingest. Applied by .hook.sh presync of
+# the tatara-operator release (filename matches *.tatara-operator.pre.yaml).
+#
+# tatara-helmfile self-enrolls here (spec Sub-system C). The remaining six
+# are the platform component repos, carried verbatim from
+# tatara-operator/deploy-samples/tatara-project.yaml so enrollment is fully
+# declarative from this repo.
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: tatara-helmfile
+  namespace: tatara
+spec:
+  projectRef: tatara
+  url: "https://github.com/szymonrychu/tatara-helmfile"
+  defaultBranch: main
+  ingestEnabled: true
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"
+---
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: tatara-memory
+  namespace: tatara
+spec:
+  projectRef: tatara
+  url: "https://github.com/szymonrychu/tatara-memory"
+  defaultBranch: main
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"
+---
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: tatara-cli
+  namespace: tatara
+spec:
+  projectRef: tatara
+  url: "https://github.com/szymonrychu/tatara-cli"
+  defaultBranch: main
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"
+---
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: tatara-operator
+  namespace: tatara
+spec:
+  projectRef: tatara
+  url: "https://github.com/szymonrychu/tatara-operator"
+  defaultBranch: main
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"
+---
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: tatara-chat
+  namespace: tatara
+spec:
+  projectRef: tatara
+  url: "https://github.com/szymonrychu/tatara-chat"
+  defaultBranch: main
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"
+---
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: tatara-memory-repo-ingester
+  namespace: tatara
+spec:
+  projectRef: tatara
+  url: "https://github.com/szymonrychu/tatara-memory-repo-ingester"
+  defaultBranch: main
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"
+---
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: tatara-claude-code-wrapper
+  namespace: tatara
+spec:
+  projectRef: tatara
+  url: "https://github.com/szymonrychu/tatara-claude-code-wrapper"
+  defaultBranch: main
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"

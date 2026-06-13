@@ -1,0 +1,46 @@
+ingress:
+  enabled: true
+  host: tatara.szymonrichert.pl
+  # path "/" lets the operator own /operator/webhooks and the REST routes
+  # internally (no rewrite double-strip). Confirm against
+  # internal/webhook/server.go route prefix before apply; adjust path and
+  # externalWebhookBase together if the operator registers routes under a
+  # sub-prefix.
+  path: /
+  className: nginx
+
+# External base used to render Project.status.webhookURL. Must match the public
+# host + the operator's internal webhook route prefix.
+externalWebhookBase: "https://tatara.szymonrichert.pl/operator/webhooks"
+
+# Callback URL: the internal Service the wrapper POST-s turn results to.
+# Must match the tatara-operator-internal Service DNS + INTERNAL_ADDR port.
+callbackUrl: "http://tatara-operator-internal.tatara.svc:8082"
+
+# Per-Project memory stack images (the operator stamps these into the native
+# objects it provisions per Project). memoryBaseUrl removed in N4: each Project
+# now exposes its own endpoint via status.memory.endpoint.
+memoryImage: "harbor.szymonrichert.pl/containers/tatara-memory:0.3.0"
+lightragImage: "harbor.szymonrichert.pl/proxy-ghcr/hkuds/lightrag@sha256:67ccf8d9f74eb29da872bf8b3e6513605f5ac601fb0509c5b0ca16d98d2d307d"
+neo4jImage: "neo4j:2026.04.0"
+# Shared OpenAI Secret (ns tatara, key LLM_BINDING_API_KEY) every per-Project
+# lightrag reads. Created out-of-band (gated step in N4 runbook).
+openaiSecretName: "lightrag-openai"
+
+# In-cluster service endpoints.
+oidcIssuer: "https://auth.szymonrichert.pl/realms/master"
+oidcAudience: "tatara-operator"
+operatorOidcClientId: "tatara-operator"
+
+# Secret names the operator references (cluster-managed, not chart-rendered).
+anthropicSecretName: "tatara-anthropic"
+cliOidcSecretName: "tatara-cli-oidc"
+scmSecretName: "tatara-scm"
+
+# imagePullSecret: cluster-specific pull secret for operator-spawned workloads
+# (neo4j, lightrag, tatara-memory, cnpg Cluster). Harbor's proxy-dockerhub
+# requires authentication; regcred is the standard pull secret in this cluster.
+imagePullSecret: "regcred"
+
+# Ingester image the ingest Job runs (must be published to harbor first).
+ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:0.2.9"
