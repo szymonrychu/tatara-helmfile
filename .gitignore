@@ -1,4 +1,13 @@
-.envrc
-*.swp
+.tmp
+__pycache__
+*.idea
+*.log
 .DS_Store
+*.gz
+venv
+.pytest*
 .worktrees/
+.claude/
+.helmfile
+docs/superpowers/
+.env

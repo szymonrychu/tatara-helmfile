@@ -9,6 +9,7 @@ repos:
       - id: check-yaml
         args:
           - --allow-multiple-documents
+        exclude: '\.gotmpl$|\.secrets\.yaml$'
       - id: check-added-large-files
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.18.1
@@ -18,8 +19,8 @@ repos:
     rev: v1.35.1
     hooks:
       - id: yamllint
-        args: [-d, '{extends: default, rules: {line-length: {max: 320}, document-start: disable}}']
-        exclude: ^helmfiles/|^raw/.*\.secrets\.yaml$
+        args: [-d, '{extends: default, rules: {line-length: {max: 320}, document-start: disable, truthy: {allowed-values: [''true'', ''false'', ''on'', ''off'']}}}']
+        exclude: '\.gotmpl$|\.secrets\.yaml$'
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.0.0
     hooks:

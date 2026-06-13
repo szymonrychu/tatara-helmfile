@@ -37,7 +37,6 @@ elif [[ "${EVENT_NAME}" == "postsync" ]]; then
 else
     fail "Not implemented event: '${EVENT_NAME}'"
 fi
-readonly PHASE="$(basename "$HELMFILE_DIR")"
 readonly TIMEOUT_TMSTP="$(($(date +%s) + TIMEOUT_S))"
 
 if [[ ! -z "${RELEASE_NAME}" ]] && [[ ! -z "${RELEASE_NAMESPACE}" ]]; then
@@ -71,7 +70,7 @@ if [[ ! -z "${RELEASE_NAME}" ]] && [[ ! -z "${RELEASE_NAMESPACE}" ]]; then
         done
     fi
 
-    readonly RELEASE_DIR="${CURRENT_PWD}/helmfiles/${PHASE}/values/${RELEASE_NAME}"
+    readonly RELEASE_DIR="${CURRENT_PWD}/values/${RELEASE_NAME}"
     if [[ -d "${RELEASE_DIR}/raw" ]]; then
         printf "Searching for files to apply for '%s' in '%s' namespace!\n" "${RELEASE_NAME}" "${RELEASE_NAMESPACE}"
         find "${RELEASE_DIR}/raw" -name "*.common.${SEARCH_SUFF}.yaml" -exec bash -xec "${KUBECTL} -n ${RELEASE_NAMESPACE} -f {}" \;

@@ -1,10 +1,57 @@
-helmfiles:
-  - path: helmfiles/tatara/helmfile.yaml.gotmpl
-
 environments:
   default: {}
-
+---
 helmDefaults:
+  force: true
   wait: true
+  # Generous wait: image pulls + ServiceMonitor/CRD settling can exceed helm's
+  # default 5m. Helm v4 renamed --atomic to --rollback-on-failure.
+  timeout: 900
   syncArgs:
     - --rollback-on-failure
+
+templates:
+  default: &default
+    missingFileHandler: Warn
+    hooks:
+    - events:
+      - prepare
+      - presync
+      - postsync
+      showlogs: true
+      command: ./.hook.sh
+      args:
+      - '{{`{{ exec "pwd" (list) }}`}}'
+      - '{{`{{ .Event.Name }}`}}'
+      - '{{`{{ .Release.Name }}`}}'
+      - '{{`{{ .Release.Namespace }}`}}'
+      - '{{`{{ .Release.Version }}`}}'
+    values:
+    - values/common.yaml
+    - values/{{`{{ .Environment.Name }}`}}.yaml
+    - values/{{`{{ .Release.Name }}`}}/common.yaml
+    - values/{{`{{ .Release.Name }}`}}/{{`{{ .Environment.Name }}`}}.yaml
+    secrets:
+    - values/{{`{{ .Release.Name }}`}}/{{`{{ .Environment.Name }}`}}.secrets.yaml
+
+releases:
+
+- name: tatara-chat
+  chart: oci://harbor.szymonrichert.pl/charts/tatara-chat
+  namespace: tatara
+  createNamespace: true
+  version: 0.1.0
+  labels:
+    purpose: tatara
+    application: tatara-chat
+  <<: *default
+
+- name: tatara-operator
+  chart: oci://harbor.szymonrichert.pl/charts/tatara-operator
+  namespace: tatara
+  createNamespace: true
+  version: 0.0.0-7d45bd9
+  labels:
+    purpose: tatara
+    application: tatara-operator
+  <<: *default

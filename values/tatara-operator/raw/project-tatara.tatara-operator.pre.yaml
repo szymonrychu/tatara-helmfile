@@ -1,0 +1,47 @@
+apiVersion: tatara.dev/v1alpha1
+kind: Project
+metadata:
+  name: tatara
+  namespace: tatara
+spec:
+  agent:
+    image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:a7eab9b
+    maxTurnsPerTask: 50
+    model: claude-opus-4-8
+    permissionMode: bypassPermissions
+    turnTimeoutSeconds: 1800
+  # Per-repo fan-out: lanes run up to maxConcurrentTasks agents at once across all
+  # repos (was 2; raised to 3 with the per-repo-lane scan model).
+  maxConcurrentTasks: 3
+  memory:
+    neo4jStorage: 10Gi
+    pgInstances: 1
+    pgStorage: 10Gi
+  scm:
+    approvalLabel: tatara/awaiting-approval
+    botLogin: szymonrychu-bot
+    cron:
+      brainstorm:
+        enabled: true
+        maxOpenProposals: 3
+        schedule: 0 * * * *
+        sources:
+          - docs
+          - memory
+          - internet
+      # Per-repo backpressured brainstorm (hourly): skip a repo with >= 3 open
+      # unapproved agent proposals, else start one brainstorm. maxPerCycle is
+      # retired (rate is fixed 1/repo/cycle). CRD carries maxOpenProposals.
+      issueScan:
+        maxPerRepo: 1
+        schedule: 0 * * * *
+      mrScan:
+        maxPerRepo: 1
+        schedule: 0 * * * *
+    mergePolicy: afterApproval
+    owner: szymonrychu
+    prReactionScope: labeledOrMentioned
+    priorityLabel: tatara/priority
+    provider: github
+  scmSecretRef: tatara-scm
+  triggerLabel: tatara

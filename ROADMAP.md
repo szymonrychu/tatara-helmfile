@@ -1,16 +1,19 @@
-# ROADMAP.md
+# ROADMAP - tatara-helmfile
 
-Component-local roadmap for tatara-helmfile. Phase-level platform roadmap
-lives in `~/Documents/tatara/ROADMAP.md`.
+## Cross-repo follow-ups (not in this repo)
 
-Statuses: `planned`, `in progress`, `shipped`.
+- [ ] infra: add `arc-runner-tatara-helmfile` RunnerScaleSet + ServiceAccount
+      `tatara-helmfile-deployer` + cluster-admin ClusterRoleBinding in
+      `infra/helmfile/helmfiles/coding`. Workflows here are RED until this ships.
+- [ ] infra: remove the `helmfiles/tatara/` bucket from `infra/helmfile`
+      (this repo is now sole owner). Drop the bucket from the root
+      `helmfile.yaml.gotmpl` helmfiles index.
+- [ ] wrapper: ship the `tatara-deploy-harness` skill + add `tatara-helmfile`
+      to the agent's TATARA_REPOS (spec Sub-system D).
 
----
+## This repo
 
-## v0.1.0 - first release
-
-**Status:** in progress 2026-05-27
-
-Mirror infra/helmfile structure. Owns tatara-memory release for now;
-other components added as they need server-managed deploys (the bootstrap
-`tatara-argo-workflows` stays in infra).
+- [ ] First live `helmfile apply` from main (human-gated, after runner exists).
+- [ ] Confirm `kubectl get project tatara` + `kubectl get repository -n tatara`
+      shows the self-enroll + 6 component CRs after first apply.
+- [ ] Consider sops PGP key rotation (currently shared with infra).
