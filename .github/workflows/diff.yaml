@@ -11,9 +11,12 @@ jobs:
       contents: read
       pull-requests: write
     env:
+      # Secrets are op-sourced from the ~/Documents/infra 1Password workspace
+      # (op_env_dotfile): GH secret names match the op var names 1:1. Harbor
+      # uses the in-cluster kubernetes robot.
       GPG_PRIVATE_RSA_B64: ${{ secrets.GPG_PRIVATE_RSA_B64 }}
-      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
-      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+      HARBOR_USERNAME: ${{ secrets.HARBOR_ROBOT_KUBERNETES_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_ROBOT_KUBERNETES_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
