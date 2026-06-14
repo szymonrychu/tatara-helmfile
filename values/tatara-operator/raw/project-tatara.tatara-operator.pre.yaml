@@ -5,7 +5,7 @@ metadata:
   namespace: tatara
 spec:
   agent:
-    image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:a09a597
+    image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:f811c6b
     maxTurnsPerTask: 50
     model: claude-opus-4-8
     permissionMode: bypassPermissions
