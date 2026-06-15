@@ -23,7 +23,10 @@ spec:
     cron:
       brainstorm:
         enabled: true
-        maxOpenProposals: 3
+        # Project-wide cap (operator dc7c631+: brainstorm is one-per-project per
+        # cycle; maxOpenProposals sums open agent proposals across ALL repos). 8
+        # ~= one per repo for the 8-repo project.
+        maxOpenProposals: 8
         schedule: 0 * * * *
         sources:
           - docs
