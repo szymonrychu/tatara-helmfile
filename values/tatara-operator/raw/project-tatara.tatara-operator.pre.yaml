@@ -13,6 +13,11 @@ spec:
   # Per-repo fan-out: lanes run up to maxConcurrentTasks agents at once across all
   # repos (was 2; raised to 3 with the per-repo-lane scan model).
   maxConcurrentTasks: 5
+  # Creation budget (non-terminal Task cap). Default 3 starved the hourly
+  # brainstorm once revived recovery began creating issueLifecycle tasks that
+  # contend the same budget. Set above maxConcurrentTasks so brainstorm always
+  # has a creation slot.
+  maxOpenTasks: 6
   memory:
     neo4jStorage: 10Gi
     pgInstances: 1
