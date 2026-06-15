@@ -12,7 +12,7 @@ spec:
     turnTimeoutSeconds: 1800
   # Per-repo fan-out: lanes run up to maxConcurrentTasks agents at once across all
   # repos (was 2; raised to 3 with the per-repo-lane scan model).
-  maxConcurrentTasks: 3
+  maxConcurrentTasks: 5
   memory:
     neo4jStorage: 10Gi
     pgInstances: 1
