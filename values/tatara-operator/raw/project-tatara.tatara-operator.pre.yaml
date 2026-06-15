@@ -19,6 +19,9 @@ spec:
     pgStorage: 10Gi
   scm:
     approvalLabel: tatara/awaiting-approval
+    # Third-party (non-bot, non-maintainer) issues auto-advance through discovery
+    # but still wait for the maintainer before implementation.
+    autoApproveThirdParty: brainstorming
     botLogin: szymonrychu-bot
     cron:
       brainstorm:
@@ -32,6 +35,14 @@ spec:
           - docs
           - memory
           - internet
+      # Repo-health audit (one repo per cycle, stale-first rotation). Offset 30
+      # min from brainstorm (0 * * * *) so the two project-scoped activities
+      # never fire in the same reconcile. maxOpenFindings shares the
+      # brainstorming-labeled proposal backlog with brainstorm; 8 ~= one per repo.
+      healthCheck:
+        enabled: true
+        maxOpenFindings: 8
+        schedule: 30 * * * *
       # Per-repo backpressured brainstorm (hourly): skip a repo with >= 3 open
       # unapproved agent proposals, else start one brainstorm. maxPerCycle is
       # retired (rate is fixed 1/repo/cycle). CRD carries maxOpenProposals.
