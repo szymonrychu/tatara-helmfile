@@ -11,3 +11,9 @@ ingress:
   # cluster values so ingress routing (nginx) + the cert-manager TLS cert survive.
   className: nginx
   clusterIssuer: letsencrypt-prod
+
+# cnpg postgres (cloudnative-pg/cluster subchart, alias 'postgres'): scale to 2
+# instances (1 primary + 1 replica).
+postgres:
+  cluster:
+    instances: 2

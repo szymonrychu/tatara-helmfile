@@ -1,3 +1,6 @@
+# Manager replicas: 3 for HA (leaderElection:true -> 1 active, 2 standby).
+replicaCount: 3
+
 ingress:
   enabled: true
   host: tatara.szymonrichert.pl
