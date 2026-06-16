@@ -1,4 +1,13 @@
+# OIDC issuer was de-baked from the chat chart in the 2026-06-15 audit (rule 14);
+# supply the cluster issuer here so chat can validate tokens (same realm as the
+# operator). oidcAudience keeps the chart default "tatara-chat".
+oidcIssuer: "https://auth.szymonrichert.pl/realms/master"
+
 ingress:
   enabled: true
   host: tatara.szymonrichert.pl
   path: /api/v1/chat
+  # className + clusterIssuer were de-baked from the chart (rule 14); supply the
+  # cluster values so ingress routing (nginx) + the cert-manager TLS cert survive.
+  className: nginx
+  clusterIssuer: letsencrypt-prod

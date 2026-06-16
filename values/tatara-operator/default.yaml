@@ -17,6 +17,14 @@ externalWebhookBase: "https://tatara.szymonrichert.pl/operator/webhooks"
 # Must match the tatara-operator-internal Service DNS + INTERNAL_ADDR port.
 callbackUrl: "http://tatara-operator-internal.tatara.svc:8082"
 
+# Per-Project memory Ingress placement (operator-stamps these at runtime). The
+# 2026-06-15 audit de-baked these from the chart (rule 14); supply them here so
+# operator-created memory ingresses keep nginx routing + the path rewrite the
+# chart used to hardcode. ingressClassName feeds the ConfigMap INGRESS_CLASS_NAME
+# (distinct from the operator's own chart Ingress .ingress.className above).
+ingressClassName: "nginx"
+ingressRewriteTarget: "/$2"
+
 # Per-Project memory stack images (the operator stamps these into the native
 # objects it provisions per Project). memoryBaseUrl removed in N4: each Project
 # now exposes its own endpoint via status.memory.endpoint.
