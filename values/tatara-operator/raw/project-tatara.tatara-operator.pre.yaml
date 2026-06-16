@@ -20,7 +20,7 @@ spec:
   maxOpenTasks: 6
   memory:
     neo4jStorage: 10Gi
-    pgInstances: 1
+    pgInstances: 2
     pgStorage: 10Gi
   scm:
     approvalLabel: tatara/awaiting-approval
