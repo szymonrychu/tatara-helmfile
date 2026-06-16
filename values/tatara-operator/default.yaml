@@ -32,8 +32,12 @@ ingressRewriteTarget: "/$2"
 # agentRunAsNonRoot=true with an empty runAsUser; the wrapper image declares a
 # NON-NUMERIC USER ("agent", uid 10001 via useradd), so kubelet cannot verify
 # non-root and rejects every agent pod (CreateContainerConfigError). Pin the
-# numeric UID so runAsNonRoot can be verified. Keep agent pods OFF the untainted
-# control-plane nodes by pinning to the nas worker (label nas=true).
+# numeric UID so runAsNonRoot can be verified. As of operator c6b315f the chart
+# defaults agentRunAsNonRoot=false (cluster-agnostic), so the helmfile opts into
+# non-root here by setting BOTH the flag and the numeric uid (the chart fail-renders
+# if the flag is true without a uid). Keep agent pods OFF the untainted control-plane
+# nodes by pinning to the nas worker (label nas=true).
+agentRunAsNonRoot: true
 agentRunAsUser: 10001
 agentScheduling:
   nodeSelector:
