@@ -25,6 +25,17 @@ callbackUrl: "http://tatara-operator-internal.tatara.svc:8082"
 ingressClassName: "nginx"
 ingressRewriteTarget: "/$2"
 
+# Agent (wrapper) Pod securityContext + placement. The 2026-06-15 audit defaulted
+# agentRunAsNonRoot=true with an empty runAsUser; the wrapper image declares a
+# NON-NUMERIC USER ("agent", uid 10001 via useradd), so kubelet cannot verify
+# non-root and rejects every agent pod (CreateContainerConfigError). Pin the
+# numeric UID so runAsNonRoot can be verified. Keep agent pods OFF the untainted
+# control-plane nodes by pinning to the nas worker (label nas=true).
+agentRunAsUser: 10001
+agentScheduling:
+  nodeSelector:
+    nas: "true"
+
 # Per-Project memory stack images (the operator stamps these into the native
 # objects it provisions per Project). memoryBaseUrl removed in N4: each Project
 # now exposes its own endpoint via status.memory.endpoint.
