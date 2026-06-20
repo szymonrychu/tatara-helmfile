@@ -3,7 +3,7 @@
 # issue/MR scans + scheduled re-ingest. Applied by .hook.sh presync of the
 # tatara-operator release (filename matches *.tatara-operator.pre.yaml).
 #
-# All three are public gitlab.com repos under szymonrychu; ingest clones
+# All are public gitlab.com repos under szymonrychu; ingest clones
 # them with the infrastructure-scm token (works without it for public, but
 # the operator wires it for parity).
 apiVersion: tatara.dev/v1alpha1
@@ -40,6 +40,32 @@ metadata:
 spec:
   projectRef: infrastructure
   url: "https://gitlab.com/szymonrychu/helmfile"
+  defaultBranch: main
+  ingestEnabled: true
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"
+---
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: terraform
+  namespace: tatara
+spec:
+  projectRef: infrastructure
+  url: "https://gitlab.com/szymonrychu/terraform"
+  defaultBranch: main
+  ingestEnabled: true
+  semanticIngest: true
+  reingestSchedule: "0 6 * * *"
+---
+apiVersion: tatara.dev/v1alpha1
+kind: Repository
+metadata:
+  name: ansible
+  namespace: tatara
+spec:
+  projectRef: infrastructure
+  url: "https://gitlab.com/szymonrychu/ansible"
   defaultBranch: main
   ingestEnabled: true
   semanticIngest: true

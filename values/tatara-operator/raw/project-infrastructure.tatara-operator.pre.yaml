@@ -1,5 +1,6 @@
 # GitLab "infrastructure" Project: enrolls szymonrychu's homelab infra repos
-# (containers, charts, helmfile) into tatara. Provider is GitLab; the agent
+# (containers, charts, helmfile, terraform, ansible) into tatara. Provider is
+# GitLab; the agent
 # loop (brainstorm + issue/MR scans + reactive handling) writes back as
 # szymonrychu-bot via the api-scoped PAT in the infrastructure-scm Secret.
 # Applied by .hook.sh presync of tatara-operator (filename matches
@@ -7,7 +8,7 @@
 # repositories-infrastructure.tatara-operator.pre.yaml.
 #
 # The operator provisions a dedicated per-project memory stack (pg + neo4j)
-# for this Project; sized smaller than tatara (3 repos, single pg instance).
+# for this Project; sized smaller than tatara (5 repos, single pg instance).
 apiVersion: tatara.dev/v1alpha1
 kind: Project
 metadata:
@@ -33,7 +34,7 @@ spec:
     cron:
       brainstorm:
         enabled: true
-        # Project-wide cap summing open agent proposals across all 3 repos.
+        # Project-wide cap summing open agent proposals across all 5 repos.
         maxOpenProposals: 3
         schedule: 0 * * * *
         sources:
