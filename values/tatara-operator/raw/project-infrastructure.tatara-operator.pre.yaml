@@ -15,10 +15,8 @@ metadata:
   namespace: tatara
 spec:
   agent:
-    # Grafana-capable wrapper (registers the per-project grafana-mcp from
-    # TATARA_GRAFANA_MCP_URL); required for spec.grafana to be useful.
-    image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:cc1d7db
-    maxTurnsPerTask: 50
+    image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:26d4450
+    maxTurnsPerTask: 100
     model: claude-opus-4-8
     permissionMode: bypassPermissions
     turnTimeoutSeconds: 1800
