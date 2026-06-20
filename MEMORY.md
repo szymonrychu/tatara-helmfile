@@ -36,3 +36,11 @@
   raw/ `.secrets.yaml`) broke it: kubectl validated ciphertext -> "unexpected GroupVersion string: ENC[...]".
   Fix: step now mirrors .hook.sh - plain `*.yaml` applied directly, `*.secrets.yaml` sops-decrypted first.
   Incident: applied the Secret live (`sops -d | kubectl apply`) since the no-op apply skipped the hook.
+- 2026-06-20 Grafana incident-response ENABLED for the infrastructure Project (first project to use the
+  inert feature). One PR: spec.grafana{enabled,url=http://prometheus-grafana.monitoring.svc.cluster.local,
+  secretRef=infrastructure-grafana} + agent.image bumped 7d65446->cc1d7db (grafana-capable wrapper) +
+  grafanaMcpImage=grafana/mcp-grafana:0.11.4 (operator-wide chart key, was empty; only projects with
+  spec.grafana.enabled provision an mcp). tatara has NO grafana secret/token - the SA token reused was the
+  ONLY one in the cluster (ai/grafana-mcp key `token`, glsa_), user-supplied. grafana secret keys:
+  serviceAccountToken (mcp) + webhookSecret (alert bearer, server.go:1004). Depends on #29 (raw-secret
+  apply fix) merging first or the no-op fallback chokes on the 2 encrypted files.

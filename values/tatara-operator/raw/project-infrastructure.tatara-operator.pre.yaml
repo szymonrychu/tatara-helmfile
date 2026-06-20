@@ -15,11 +15,21 @@ metadata:
   namespace: tatara
 spec:
   agent:
-    image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:7d65446
+    # Grafana-capable wrapper (registers the per-project grafana-mcp from
+    # TATARA_GRAFANA_MCP_URL); required for spec.grafana to be useful.
+    image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:cc1d7db
     maxTurnsPerTask: 50
     model: claude-opus-4-8
     permissionMode: bypassPermissions
     turnTimeoutSeconds: 1800
+  # Read-only Grafana incident-response: operator provisions a per-project
+  # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
+  # /operator/webhooks/infrastructure/grafana. Secret keys: serviceAccountToken
+  # (mounted into grafana-mcp) + webhookSecret (alert bearer).
+  grafana:
+    enabled: true
+    url: http://prometheus-grafana.monitoring.svc.cluster.local
+    secretRef: infrastructure-grafana
   maxConcurrentTasks: 3
   # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
   maxOpenTasks: 4
