@@ -23,3 +23,11 @@
   declarative from this repo.
 - 2026-06-13 mise dropped infra-only tools (terraform/kustomize/kubectx/stern);
   kept helm/helmfile/kubectl/sops + helm-secrets 4.7.4 + helm-diff.
+- 2026-06-20 GitLab `infrastructure` Project enrolled (containers/charts/helmfile,
+  public gitlab.com/szymonrychu): `raw/project-infrastructure...pre.yaml` +
+  `raw/repositories-infrastructure...pre.yaml` + sops `infrastructure-scm` Secret
+  (own scmSecretRef, NOT tatara-scm; keys token=api-PAT + webhookSecret). First
+  GitLab provider Project; full agent loop (brainstorm+issue/MR scans), own memory
+  stack (pgInstances 1). botLogin szymonrychu-bot, maintainerLogins [szymonrychu].
+  Webhook receiver /operator/webhooks/infrastructure (X-Gitlab-Token=webhookSecret).
+  Runbook: tatara/docs/superpowers/runbooks/2026-06-20-enroll-infrastructure-gitlab.md.
