@@ -31,6 +31,16 @@
   stack (pgInstances 1). botLogin szymonrychu-bot, maintainerLogins [szymonrychu].
   Webhook receiver /operator/webhooks/infrastructure (X-Gitlab-Token=webhookSecret).
   Runbook: tatara/docs/superpowers/runbooks/2026-06-20-enroll-infrastructure-gitlab.md.
+- 2026-06-20 **CRD-adopt presync hook** (`values/tatara-operator/hooks/crd-adopt.tatara-operator.pre.sh`).
+  operator #89 moved the 5 tatara.dev CRDs from install-only `crds/` to templated `crd-bases/`, so
+  `helm upgrade` now ADOPTS them; a CRD pre-existing WITHOUT helm ownership metadata fails apply with
+  "invalid ownership metadata" (blocks the whole release). The live cluster was relabelled out-of-band
+  once to land #38/#39; this idempotent presync hook (`kubectl label/annotate` iff `managed-by` absent)
+  makes the fix permanent + self-healing. No-op on the normal path (CRDs already owned) and on fresh
+  clusters (helm installs the CRDs, none pre-exist). NOTE the operator chart RBAC is hand-maintained
+  (`templates/rbac.yaml`) and the kubebuilder:rbac markers are NOT consumed (operator `manifests` runs
+  controller-gen crd only) - queuedevents RBAC was added by hand in operator #90; root fix (wire
+  controller-gen rbac) is a tatara-operator backlog item.
 - 2026-06-20 apply.yaml "reconcile enrollment CRs" step did `kubectl apply -f values/tatara-operator/raw/`
   (whole dir) assuming raw/ holds only non-secret manifests. The infrastructure-scm sops Secret (first
   raw/ `.secrets.yaml`) broke it: kubectl validated ciphertext -> "unexpected GroupVersion string: ENC[...]".
