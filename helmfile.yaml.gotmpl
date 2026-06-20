@@ -60,3 +60,34 @@ releases:
     purpose: tatara
     application: tatara-operator
   <<: *default
+
+# Project + Repository CRs, codified declaratively via the tatara-project chart
+# (rook-ceph-cluster-style: the operator chart above installs the CRDs, these
+# releases are the workload it reconciles). Replaces the old
+# raw/project-*.yaml + repositories-*.yaml presync manifests. `needs` the
+# operator so the tatara.dev CRDs exist before these CRs apply.
+# NOTE: bump version to the published 0.0.0-<sha> once the tatara-project chart
+# CI publishes it (operator#74 subtask 4).
+- name: project-tatara
+  chart: oci://harbor.szymonrichert.pl/charts/tatara-project
+  namespace: tatara
+  createNamespace: true
+  version: 0.1.0
+  needs:
+  - tatara/tatara-operator
+  labels:
+    purpose: tatara
+    application: tatara-project
+  <<: *default
+
+- name: project-infrastructure
+  chart: oci://harbor.szymonrichert.pl/charts/tatara-project
+  namespace: tatara
+  createNamespace: true
+  version: 0.1.0
+  needs:
+  - tatara/tatara-operator
+  labels:
+    purpose: tatara
+    application: tatara-project
+  <<: *default
