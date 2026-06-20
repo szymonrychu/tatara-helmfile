@@ -31,3 +31,8 @@
   stack (pgInstances 1). botLogin szymonrychu-bot, maintainerLogins [szymonrychu].
   Webhook receiver /operator/webhooks/infrastructure (X-Gitlab-Token=webhookSecret).
   Runbook: tatara/docs/superpowers/runbooks/2026-06-20-enroll-infrastructure-gitlab.md.
+- 2026-06-20 apply.yaml "reconcile enrollment CRs" step did `kubectl apply -f values/tatara-operator/raw/`
+  (whole dir) assuming raw/ holds only non-secret manifests. The infrastructure-scm sops Secret (first
+  raw/ `.secrets.yaml`) broke it: kubectl validated ciphertext -> "unexpected GroupVersion string: ENC[...]".
+  Fix: step now mirrors .hook.sh - plain `*.yaml` applied directly, `*.secrets.yaml` sops-decrypted first.
+  Incident: applied the Secret live (`sops -d | kubectl apply`) since the no-op apply skipped the hook.
