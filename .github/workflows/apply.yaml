@@ -47,13 +47,18 @@ jobs:
           eval "$($HOME/.local/bin/mise activate bash)"
           helmfile -e default apply --suppress-secrets
 
-      # The Project + Repository enrollment CRs are applied by the helmfile
-      # presync hook ONLY when a release actually syncs. A no-op apply (releases
-      # already at target, e.g. the initial adoption) skips sync -> the hook does
-      # not fire -> the CRs are not reconciled. Apply them explicitly here so
-      # enrollment is deterministic on every run (idempotent; in-cluster SA).
-      # These are non-secret raw manifests; the sops values secret is separate.
-      - name: reconcile enrollment CRs (Project + Repository)
+      # The Project + Repository enrollment CRs (and per-project scm Secrets) are
+      # applied by the helmfile presync hook ONLY when a release actually syncs.
+      # A no-op apply (releases already at target, e.g. the initial adoption)
+      # skips sync -> the hook does not fire -> nothing is reconciled. Apply them
+      # explicitly here so enrollment is deterministic on every run (idempotent;
+      # in-cluster SA). Mirrors .hook.sh: plain manifests applied directly,
+      # *.secrets.yaml sops-decrypted first (a raw kubectl apply of an encrypted
+      # file fails with "unexpected GroupVersion string: ENC[...]").
+      - name: reconcile enrollment CRs (Project + Repository + scm Secrets)
         run: |
           eval "$($HOME/.local/bin/mise activate bash)"
-          kubectl apply -f values/tatara-operator/raw/
+          find values/tatara-operator/raw -maxdepth 1 -name '*.yaml' ! -name '*.secrets.yaml' \
+            -exec kubectl apply -f {} \;
+          find values/tatara-operator/raw -maxdepth 1 -name '*.secrets.yaml' -print0 \
+            | while IFS= read -r -d '' f; do sops -d "$f" | kubectl apply -f -; done
