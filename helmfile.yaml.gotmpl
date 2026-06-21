@@ -51,11 +51,17 @@ releases:
     application: tatara-chat
   <<: *default
 
+# Pinned to the operator main HEAD (operator CI packages charts/* as
+# 0.0.0-<short-sha> on push to main). Harbor retention GCs older chart tags, so
+# a stale pin eventually fails apply with chart-not-found ("FetchReference ...
+# not found") even though it once published. Keep this at a RECENT published sha
+# (ideally main HEAD), in lockstep with the project-* pins below so the operator
+# CRDs match the tatara-project chart those releases render.
 - name: tatara-operator
   chart: oci://harbor.szymonrichert.pl/charts/tatara-operator
   namespace: tatara
   createNamespace: true
-  version: 0.0.0-c8678a6
+  version: 0.0.0-30d8c8e
   labels:
     purpose: tatara
     application: tatara-operator

@@ -36,7 +36,7 @@ values/
 | release                 | chart                                                | version        | ns     |
 |-------------------------|------------------------------------------------------|----------------|--------|
 | tatara-chat             | oci://harbor.szymonrichert.pl/charts/tatara-chat     | 0.0.0-b050719  | tatara |
-| tatara-operator         | oci://harbor.szymonrichert.pl/charts/tatara-operator | 0.0.0-c8678a6  | tatara |
+| tatara-operator         | oci://harbor.szymonrichert.pl/charts/tatara-operator | 0.0.0-30d8c8e  | tatara |
 | project-tatara          | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.0.0-30d8c8e  | tatara |
 | project-infrastructure  | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.0.0-30d8c8e  | tatara |
 
@@ -46,6 +46,8 @@ first) and codify each Project plus its Repository CRs declaratively from
 raw/project-*.yaml + repositories-*.yaml presync manifests). The
 tatara-project `version:` tracks a published `0.0.0-<sha>` (operator CI packages
 `charts/*` on push to main); never the unpublished `0.1.0` Chart.yaml value.
+Keep every `0.0.0-<sha>` pin RECENT (track main HEAD): Harbor retention GCs old
+chart tags, so a stale pin eventually fails apply with chart-not-found.
 
 ## Deploy flow
 
