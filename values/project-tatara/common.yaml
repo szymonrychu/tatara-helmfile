@@ -29,6 +29,15 @@ project:
       provider: github
       owner: szymonrychu
       botLogin: szymonrychu-bot
+      # Issue #102: szymonrychu is the sole trusted maintainer/approver AND the
+      # sole human reporter. maintainerLogins makes only his comment count as the
+      # approval go-ahead; reporterLogins drops issues/comments from anyone else
+      # (the bot stays a trusted insider, so autonomous brainstorm/health-check
+      # issues still flow), closing the prompt-injection vector.
+      maintainerLogins:
+        - szymonrychu
+      reporterLogins:
+        - szymonrychu
       approvalLabel: tatara/awaiting-approval
       mergePolicy: afterApproval
       prReactionScope: labeledOrMentioned
