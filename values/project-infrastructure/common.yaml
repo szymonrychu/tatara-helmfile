@@ -48,7 +48,7 @@ project:
       cron:
         brainstorm:
           enabled: true
-          # Project-wide cap summing open agent proposals across all 3 repos.
+          # Project-wide cap summing open agent proposals across all 5 repos.
           maxOpenProposals: 3
           schedule: 0 * * * *
           sources:
@@ -80,6 +80,20 @@ repositories:
   - name: helmfile
     spec:
       url: "https://gitlab.com/szymonrychu/helmfile"
+      defaultBranch: main
+      ingestEnabled: true
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: terraform
+    spec:
+      url: "https://gitlab.com/szymonrychu/terraform"
+      defaultBranch: main
+      ingestEnabled: true
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: ansible
+    spec:
+      url: "https://gitlab.com/szymonrychu/ansible"
       defaultBranch: main
       ingestEnabled: true
       semanticIngest: true
