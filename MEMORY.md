@@ -56,3 +56,5 @@
   ONLY one in the cluster (ai/grafana-mcp key `token`, glsa_), user-supplied. grafana secret keys:
   serviceAccountToken (mcp) + webhookSecret (alert bearer, server.go:1004). Depends on #29 (raw-secret
   apply fix) merging first or the no-op fallback chokes on the 2 encrypted files.
+
+2026-06-21 (tatara-operator#102) Set scm.maintainerLogins AND scm.reporterLogins to [szymonrychu] on BOTH project-tatara and project-infrastructure. The operator's new reporter-intake gate only takes effect when reporterLogins is non-empty (empty = open, and third-party #56 autoapprove stays open), so populating reporterLogins here is what actually closes the prompt-injection vector. maintainerLogins makes only szymonrychu's comment count as approval. The bot (szymonrychu-bot) is always a trusted insider, so autonomous brainstorm/health-check issues still flow. The tatara-project chart renders project.spec verbatim via toYaml, so no chart bump was needed for the new fields.

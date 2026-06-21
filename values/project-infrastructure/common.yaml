@@ -39,7 +39,12 @@ project:
       botLogin: szymonrychu-bot
       # The owner is a trusted insider: issues opened by szymonrychu go through
       # normal triage/approval, not third-party autoapprove.
+      # Issue #102: szymonrychu is the sole maintainer/approver AND sole human
+      # reporter. reporterLogins drops issues/comments from anyone else (the bot
+      # stays a trusted insider), closing the prompt-injection vector.
       maintainerLogins:
+        - szymonrychu
+      reporterLogins:
         - szymonrychu
       approvalLabel: tatara/awaiting-approval
       mergePolicy: afterApproval
