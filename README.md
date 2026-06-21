@@ -1,13 +1,14 @@
 # tatara-helmfile
 
-Standalone helmfile bucket for the tatara platform. Owns two helm releases
-and the operator enrollment CRs, deploys via GitHub Actions on an in-cluster
-ARC runner.
+Standalone helmfile bucket for the tatara platform. Owns the platform helm
+releases and the operator enrollment CRs (Project + Repository, codified via
+the tatara-project chart), deploys via GitHub Actions on an in-cluster ARC
+runner.
 
 ## Layout
 
 ```
-helmfile.yaml.gotmpl          # single 'default' env, helmDefaults, 2 releases
+helmfile.yaml.gotmpl          # single 'default' env, helmDefaults, 4 releases
 .hook.sh                      # presync: applies values/<release>/raw/*.pre.yaml,
                               #   sops-decrypts *.pre.secrets.yaml
 values/
@@ -18,8 +19,11 @@ values/
     default.yaml              # ingress/webhook/OIDC/memory-image values
     default.secrets.yaml      # sops (PGP D39E...CED8)
     raw/
-      project-tatara.tatara-operator.pre.yaml        # tatara.dev Project CR
-      repositories-tatara.tatara-operator.pre.yaml   # Repository CRs (incl. self-enroll)
+      infrastructure-scm.tatara-operator.pre.secrets.yaml  # sops: GitLab PAT Secret
+  project-tatara/
+    common.yaml               # tatara Project + Repository CRs (tatara-project chart values)
+  project-infrastructure/
+    common.yaml               # GitLab infrastructure Project + Repository CRs
   tatara-chat/
     default.yaml              # ingress host/path
 .github/workflows/
@@ -29,10 +33,19 @@ values/
 
 ## Releases
 
-| release          | chart                                                | version       | ns     |
-|------------------|------------------------------------------------------|---------------|--------|
-| tatara-chat      | oci://harbor.szymonrichert.pl/charts/tatara-chat     | 0.1.0         | tatara |
-| tatara-operator  | oci://harbor.szymonrichert.pl/charts/tatara-operator | 0.0.0-7d45bd9 | tatara |
+| release                 | chart                                                | version       | ns     |
+|-------------------------|------------------------------------------------------|---------------|--------|
+| tatara-chat             | oci://harbor.szymonrichert.pl/charts/tatara-chat     | 0.1.0         | tatara |
+| tatara-operator         | oci://harbor.szymonrichert.pl/charts/tatara-operator | 0.0.0-7d45bd9 | tatara |
+| project-tatara          | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.1.0         | tatara |
+| project-infrastructure  | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.1.0         | tatara |
+
+The two `project-*` releases `needs:` tatara-operator (its CRDs must exist
+first) and codify each Project plus its Repository CRs declaratively from
+`values/project-*/common.yaml` (replacing the former
+raw/project-*.yaml + repositories-*.yaml presync manifests). Bump the
+tatara-project `version:` to the published `0.0.0-<sha>` once that chart's CI
+publishes it.
 
 ## Deploy flow
 
