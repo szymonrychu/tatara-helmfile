@@ -46,9 +46,13 @@ agentScheduling:
 # Per-Project memory stack images (the operator stamps these into the native
 # objects it provisions per Project). memoryBaseUrl removed in N4: each Project
 # now exposes its own endpoint via status.memory.endpoint.
-memoryImage: "harbor.szymonrichert.pl/containers/tatara-memory:672e111"
+memoryImage: "harbor.szymonrichert.pl/containers/tatara-memory:02bbd15"
 lightragImage: "harbor.szymonrichert.pl/proxy-ghcr/hkuds/lightrag@sha256:67ccf8d9f74eb29da872bf8b3e6513605f5ac601fb0509c5b0ca16d98d2d307d"
 neo4jImage: "neo4j:2026.04.0"
+# Read-only grafana-mcp the operator provisions per Project that enables
+# spec.grafana (incident-response). Pinned to the version already proven in this
+# cluster (ai/grafana-mcp). Operator stamps it into GRAFANA_MCP_IMAGE.
+grafanaMcpImage: "grafana/mcp-grafana:0.11.4"
 # Shared OpenAI Secret (ns tatara, key LLM_BINDING_API_KEY) every per-Project
 # lightrag reads. Created out-of-band (gated step in N4 runbook).
 openaiSecretName: "lightrag-openai"

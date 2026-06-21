@@ -1,0 +1,100 @@
+# GitLab "infrastructure" Project + Repository CRs, codified via the
+# tatara-project chart (replaces the old raw/project-infrastructure +
+# repositories-infrastructure presync manifests). Behavior-preserving: spec
+# values are identical to the manifests they replace. The infrastructure-scm
+# Secret is still applied by the tatara-operator release presync (sops), not by
+# this chart.
+namespace: tatara
+
+project:
+  name: infrastructure
+  spec:
+    scmSecretRef: infrastructure-scm
+    triggerLabel: tatara
+    maxConcurrentTasks: 3
+    # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
+    maxOpenTasks: 4
+    agent:
+      effort: xhigh
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:b3b7932
+      maxTurnsPerTask: 100
+      model: claude-opus-4-8
+      permissionMode: bypassPermissions
+      turnTimeoutSeconds: 1800
+    # Read-only Grafana incident-response: operator provisions a per-project
+    # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
+    # /operator/webhooks/infrastructure/grafana. Secret keys: serviceAccountToken
+    # (mounted into grafana-mcp) + webhookSecret (alert bearer).
+    grafana:
+      enabled: true
+      url: http://prometheus-grafana.monitoring.svc.cluster.local
+      secretRef: infrastructure-grafana
+    memory:
+      neo4jStorage: 10Gi
+      pgInstances: 1
+      pgStorage: 10Gi
+    scm:
+      provider: gitlab
+      owner: szymonrychu
+      botLogin: szymonrychu-bot
+      # The owner is a trusted insider: issues opened by szymonrychu go through
+      # normal triage/approval, not third-party autoapprove.
+      maintainerLogins:
+        - szymonrychu
+      approvalLabel: tatara/awaiting-approval
+      mergePolicy: afterApproval
+      prReactionScope: labeledOrMentioned
+      priorityLabel: tatara/priority
+      cron:
+        brainstorm:
+          enabled: true
+          # Project-wide cap summing open agent proposals across all 5 repos.
+          maxOpenProposals: 3
+          schedule: 0 * * * *
+          sources:
+            - docs
+            - memory
+            - internet
+        issueScan:
+          maxPerRepo: 1
+          schedule: 0 * * * *
+        mrScan:
+          maxPerRepo: 1
+          schedule: 0 * * * *
+
+repositories:
+  - name: containers
+    spec:
+      url: "https://gitlab.com/szymonrychu/containers"
+      defaultBranch: main
+      ingestEnabled: true
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: charts
+    spec:
+      url: "https://gitlab.com/szymonrychu/charts"
+      defaultBranch: main
+      ingestEnabled: true
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: helmfile
+    spec:
+      url: "https://gitlab.com/szymonrychu/helmfile"
+      defaultBranch: main
+      ingestEnabled: true
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: terraform
+    spec:
+      url: "https://gitlab.com/szymonrychu/terraform"
+      defaultBranch: main
+      ingestEnabled: true
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: ansible
+    spec:
+      url: "https://gitlab.com/szymonrychu/ansible"
+      defaultBranch: main
+      ingestEnabled: true
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"

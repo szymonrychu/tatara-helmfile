@@ -1,0 +1,96 @@
+# tatara Project + Repository CRs, codified via the tatara-project chart
+# (replaces the old raw/project-tatara + repositories-tatara presync manifests).
+# Behavior-preserving: spec values are identical to the manifests they replace.
+namespace: tatara
+
+project:
+  name: tatara
+  spec:
+    scmSecretRef: tatara-scm
+    triggerLabel: tatara
+    # Per-repo fan-out: lanes run up to maxConcurrentTasks agents at once across
+    # all repos.
+    maxConcurrentTasks: 5
+    # Creation budget (non-terminal Task cap). Set above maxConcurrentTasks so the
+    # hourly brainstorm always has a creation slot.
+    maxOpenTasks: 6
+    agent:
+      effort: xhigh
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:b3b7932
+      maxTurnsPerTask: 100
+      model: claude-opus-4-8
+      permissionMode: bypassPermissions
+      turnTimeoutSeconds: 1800
+    memory:
+      neo4jStorage: 10Gi
+      pgInstances: 2
+      pgStorage: 10Gi
+    scm:
+      provider: github
+      owner: szymonrychu
+      botLogin: szymonrychu-bot
+      approvalLabel: tatara/awaiting-approval
+      mergePolicy: afterApproval
+      prReactionScope: labeledOrMentioned
+      priorityLabel: tatara/priority
+      cron:
+        brainstorm:
+          enabled: true
+          # Project-wide cap summing open agent proposals across ALL repos.
+          maxOpenProposals: 8
+          schedule: 0 * * * *
+          sources:
+            - docs
+            - memory
+            - internet
+        issueScan:
+          maxPerRepo: 1
+          schedule: 0 * * * *
+        mrScan:
+          maxPerRepo: 1
+          schedule: 0 * * * *
+
+repositories:
+  - name: tatara-helmfile
+    spec:
+      url: "https://github.com/szymonrychu/tatara-helmfile"
+      defaultBranch: main
+      ingestEnabled: true
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: tatara-memory
+    spec:
+      url: "https://github.com/szymonrychu/tatara-memory"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: tatara-cli
+    spec:
+      url: "https://github.com/szymonrychu/tatara-cli"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: tatara-operator
+    spec:
+      url: "https://github.com/szymonrychu/tatara-operator"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: tatara-chat
+    spec:
+      url: "https://github.com/szymonrychu/tatara-chat"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: tatara-memory-repo-ingester
+    spec:
+      url: "https://github.com/szymonrychu/tatara-memory-repo-ingester"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: tatara-claude-code-wrapper
+    spec:
+      url: "https://github.com/szymonrychu/tatara-claude-code-wrapper"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
