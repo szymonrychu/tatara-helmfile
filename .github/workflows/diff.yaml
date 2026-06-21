@@ -49,19 +49,30 @@ jobs:
           set +e
           helmfile -e default diff --detailed-exitcode --suppress-secrets 2>&1 | tee diff.log
           set -e
+          # Render the sticky-comment body to a file and pass it to the comment
+          # action via `path:` (NOT an inline `message:` expression). A large
+          # diff interpolated inline overflows the child-process arg/env limit
+          # ("Argument list too long") and fails the job; GitHub also caps a
+          # comment at 65536 chars. Strip ANSI and truncate to a safe size.
+          sed 's/\x1b\[[0-9;]*m//g' diff.log > diff.clean.log
+          MAX=60000
           {
-            echo 'output<<DIFF_EOF'
-            sed 's/\x1b\[[0-9;]*m//g' diff.log
-            echo 'DIFF_EOF'
-          } >> "$GITHUB_OUTPUT"
+            echo '## helmfile diff (`-e default`)'
+            echo
+            echo '```diff'
+            if [ "$(wc -c < diff.clean.log)" -gt "$MAX" ]; then
+              echo "[diff truncated to ${MAX} bytes; see the job log for the full output]"
+              echo
+              head -c "$MAX" diff.clean.log
+            else
+              cat diff.clean.log
+            fi
+            echo
+            echo '```'
+          } > diff-comment.md
 
       - uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: tatara-helmfile-diff
           recreate: true
-          message: |
-            ## helmfile diff (`-e default`)
-
-            ```diff
-            ${{ steps.diff.outputs.output }}
-            ```
+          path: diff-comment.md
