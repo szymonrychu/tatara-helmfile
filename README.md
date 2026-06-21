@@ -33,19 +33,19 @@ values/
 
 ## Releases
 
-| release                 | chart                                                | version       | ns     |
-|-------------------------|------------------------------------------------------|---------------|--------|
-| tatara-chat             | oci://harbor.szymonrichert.pl/charts/tatara-chat     | 0.1.0         | tatara |
-| tatara-operator         | oci://harbor.szymonrichert.pl/charts/tatara-operator | 0.0.0-7d45bd9 | tatara |
-| project-tatara          | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.1.0         | tatara |
-| project-infrastructure  | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.1.0         | tatara |
+| release                 | chart                                                | version        | ns     |
+|-------------------------|------------------------------------------------------|----------------|--------|
+| tatara-chat             | oci://harbor.szymonrichert.pl/charts/tatara-chat     | 0.0.0-b050719  | tatara |
+| tatara-operator         | oci://harbor.szymonrichert.pl/charts/tatara-operator | 0.0.0-c8678a6  | tatara |
+| project-tatara          | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.0.0-30d8c8e  | tatara |
+| project-infrastructure  | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.0.0-30d8c8e  | tatara |
 
 The two `project-*` releases `needs:` tatara-operator (its CRDs must exist
 first) and codify each Project plus its Repository CRs declaratively from
 `values/project-*/common.yaml` (replacing the former
-raw/project-*.yaml + repositories-*.yaml presync manifests). Bump the
-tatara-project `version:` to the published `0.0.0-<sha>` once that chart's CI
-publishes it.
+raw/project-*.yaml + repositories-*.yaml presync manifests). The
+tatara-project `version:` tracks a published `0.0.0-<sha>` (operator CI packages
+`charts/*` on push to main); never the unpublished `0.1.0` Chart.yaml value.
 
 ## Deploy flow
 
