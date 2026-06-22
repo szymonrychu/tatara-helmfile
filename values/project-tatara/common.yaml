@@ -27,6 +27,17 @@ project:
       pgStorage: 10Gi
     scm:
       provider: github
+      guidance: >-
+        This project is self-hosting: its repositories (the tatara operator,
+        cli, wrapper, memory, ingester, and helmfile) ARE the autonomous-agent
+        platform you and the other agents run on. Treat the operational
+        infrastructure as in-scope, not only application features: the helm
+        charts, the tatara-helmfile releases and deploy pipeline, the CI
+        workflows and build tooling, the k8s/ARC-runner/Ceph/memory-backend
+        configuration, and the incidents recorded in each repository's
+        MEMORY.md. When you find a recurring operational failure or a gap in
+        the platform's reliability or observability, propose improvements to
+        that infrastructure.
       owner: szymonrychu
       botLogin: szymonrychu-bot
       # Issue #102: szymonrychu is the sole trusted maintainer/approver AND the
