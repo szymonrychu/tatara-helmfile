@@ -16,7 +16,7 @@ project:
     maxOpenTasks: 4
     agent:
       effort: xhigh
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:b3b7932
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:5373573
       maxTurnsPerTask: 100
       model: claude-opus-4-8
       permissionMode: bypassPermissions
@@ -54,7 +54,7 @@ project:
         brainstorm:
           enabled: true
           # Project-wide cap summing open agent proposals across all 5 repos.
-          maxOpenProposals: 3
+          maxOpenProposals: 10
           schedule: 0 * * * *
           sources:
             - docs
