@@ -61,7 +61,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-operator
   namespace: tatara
   createNamespace: true
-  version: 0.0.0-ae414cf
+  version: 0.0.0-404d9d9
   labels:
     purpose: tatara
     application: tatara-operator
@@ -73,14 +73,14 @@ releases:
 # raw/project-*.yaml + repositories-*.yaml presync manifests. `needs` the
 # operator so the tatara.dev CRDs exist before these CRs apply.
 # Pinned to the published tatara-project chart (operator CI packages charts/*
-# as 0.0.0-<short-sha> on push to main; 30d8c8e is the operator main HEAD that
+# as 0.0.0-<short-sha> on push to main; 404d9d9 is the operator main HEAD that
 # carries charts/tatara-project). The placeholder 0.1.0 is NOT published, so it
 # fails apply on main with chart-not-found.
 - name: project-tatara
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
   namespace: tatara
   createNamespace: true
-  version: 0.0.0-ae414cf
+  version: 0.0.0-404d9d9
   needs:
   - tatara/tatara-operator
   labels:
@@ -92,7 +92,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
   namespace: tatara
   createNamespace: true
-  version: 0.0.0-ae414cf
+  version: 0.0.0-404d9d9
   needs:
   - tatara/tatara-operator
   labels:
