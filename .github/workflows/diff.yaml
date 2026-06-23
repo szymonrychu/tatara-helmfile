@@ -48,7 +48,15 @@ jobs:
           eval "$($HOME/.local/bin/mise activate bash)"
           set +e
           helmfile -e default diff --detailed-exitcode --suppress-secrets 2>&1 | tee diff.log
+          # Capture the diff's REAL exit code. The pipe to `tee` makes `$?` the
+          # status of `tee` (always 0), so the helm-diff --detailed-exitcode
+          # result lives in PIPESTATUS[0]. Contract: 0 = no change, 2 = diff
+          # present, 1/other = error (chart-not-found, render failure, sops
+          # decrypt). Expose it as a step output so the gate step below can
+          # block the merge on an error code.
+          code="${PIPESTATUS[0]}"
           set -e
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
           # Render the sticky-comment body to a file and pass it to the comment
           # action via `path:` (NOT an inline `message:` expression). A large
           # diff interpolated inline overflows the child-process arg/env limit
@@ -71,8 +79,29 @@ jobs:
             echo '```'
           } > diff-comment.md
 
-      - uses: marocchino/sticky-pull-request-comment@v2
+      # Post the rendered diff even when the diff errored (`if: always()`) so the
+      # reviewer sees WHY the check is red (e.g. the chart-not-found text), not
+      # just a failed job. Preserves the #47 `path:`-based large-diff fix.
+      - if: always()
+        uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: tatara-helmfile-diff
           recreate: true
           path: diff-comment.md
+
+      # Merge gate: enforce the documented policy that a diff-time error
+      # (chart-not-found / render / sops decrypt) BLOCKS the merge. Pass iff the
+      # diff's --detailed-exitcode was 0 (no change) or 2 (diff present); fail on
+      # 1, any other value, or an empty/unset output (fail-closed). This is the
+      # sole step that turns the PR check red; the diff step stays
+      # continue-on-error so the sticky comment above always renders first.
+      - name: gate merge on diff result
+        if: always()
+        run: |
+          code='${{ steps.diff.outputs.code }}'
+          echo "helmfile diff --detailed-exitcode => '${code}'"
+          case "${code}" in
+            0) echo "No changes; check passes." ;;
+            2) echo "Diff present; check passes (reviewable change)." ;;
+            *) echo "::error::helmfile diff failed (exit '${code}': chart-not-found, render, or sops decrypt error). Blocking merge per repo policy."; exit 1 ;;
+          esac
