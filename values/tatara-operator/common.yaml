@@ -3,4 +3,4 @@
 # pull secret reaches the manager Deployment from the bucket values/common.yaml
 # (imagePullSecrets), same as the other tatara releases.
 image:
-  tag: "404d9d9"
+  tag: "22c0fe8"
