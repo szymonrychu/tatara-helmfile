@@ -74,3 +74,28 @@ imagePullSecret: "regcred"
 
 # Ingester image the ingest Job runs (must be published to harbor first).
 ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:7f7c901"
+
+# S3 conversation persistence (issue #114). The operator + wrapper store/restore
+# each issue's Claude conversation transcript in this bucket so a fresh pod
+# resumes the prior conversation. The bucket + creds are provisioned by the
+# rook-ceph ObjectBucketClaim in raw/conversation-bucket.tatara-operator.pre.yaml
+# (which auto-creates Secret tatara-conversations holding
+# AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY). The feature stays off until the
+# operator + wrapper images are bumped to a build carrying the #114 code (chart
+# pin in helmfile.yaml.gotmpl + image.tag in common.yaml); the currently-pinned
+# published builds ignore these keys, so wiring them now is forward-compatible.
+#
+# VERIFY at deploy (tatara-deploy-harness): s3Endpoint must be the rook-ceph RGW
+# service the OBC reports in its generated ConfigMap (BUCKET_HOST:BUCKET_PORT).
+# The value below is the conventional rook-ceph pattern; confirm the object-store
+# name and port against the live cluster.
+s3Endpoint: "http://rook-ceph-rgw-tatara.rook-ceph.svc"
+s3Bucket: "tatara-conversations"
+# Ceph RGW ignores the region but the AWS SDK requires one for request signing.
+s3Region: "us-east-1"
+# Namespacing within the bucket; the wrapper prepends this to every object key.
+s3KeyPrefix: "conversations"
+# Ceph RGW (and MinIO) need path-style addressing; AWS S3 would use false.
+s3ForcePathStyle: true
+# The OBC-generated Secret (same name as the OBC) holding the AWS_* creds.
+s3SecretName: "tatara-conversations"

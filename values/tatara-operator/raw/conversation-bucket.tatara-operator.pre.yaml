@@ -1,0 +1,38 @@
+# Conversation transcript bucket for issue #114 (S3 conversation persistence).
+#
+# Applied by the operator presync hook (.hook.sh: *.tatara-operator.pre.yaml ->
+# `kubectl apply -n tatara`). A rook-ceph ObjectBucketClaim provisions the bucket
+# and rook-ceph's OBC controller AUTO-CREATES, in the same (tatara) namespace:
+#   - Secret    tatara-conversations  with keys AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+#   - ConfigMap tatara-conversations  with BUCKET_HOST / BUCKET_PORT / BUCKET_NAME
+# The operator + wrapper read those creds via s3SecretName (see default.yaml).
+# Because the OBC generates the creds, NO sops secret is needed for the on-cluster
+# path (unlike the AWS path below), so this is a plaintext .pre.yaml, not a
+# .pre.secrets.yaml.
+#
+# DEPLOY-STEP VERIFY (tatara-deploy-harness, not this PR):
+#   1. storageClassName below must be the cluster's rook-ceph object-bucket
+#      StorageClass (kubectl get sc | grep -i bucket; e.g. rook-ceph-bucket).
+#   2. After the OBC binds, read the real endpoint from the generated ConfigMap
+#      (kubectl -n tatara get cm tatara-conversations \
+#         -o jsonpath='{.data.BUCKET_HOST}:{.data.BUCKET_PORT}') and confirm it
+#      matches default.yaml s3Endpoint; adjust s3Endpoint if the RGW service
+#      name/port differ.
+#
+# AWS S3 alternative (instead of this OBC): create the bucket out-of-band, drop
+# this file, and add a sops-encrypted Secret named per s3SecretName with keys
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY as
+# values/tatara-operator/raw/conversation-bucket.tatara-operator.pre.secrets.yaml
+# (or use IRSA and leave s3SecretName empty so the pods use the instance role),
+# and set s3Endpoint to "" + s3ForcePathStyle:false + s3Region to the AWS region.
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: tatara-conversations
+  namespace: tatara
+spec:
+  # Explicit (not generateBucketName) so the bucket name is stable and matches
+  # default.yaml s3Bucket across re-syncs.
+  bucketName: tatara-conversations
+  # VERIFY at deploy: the cluster's rook-ceph object-bucket StorageClass.
+  storageClassName: rook-ceph-bucket
