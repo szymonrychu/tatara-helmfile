@@ -89,7 +89,7 @@ ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:1
 # service the OBC reports in its generated ConfigMap (BUCKET_HOST:BUCKET_PORT).
 # The value below is the conventional rook-ceph pattern; confirm the object-store
 # name and port against the live cluster.
-s3Endpoint: "http://rook-ceph-rgw-tatara.rook-ceph.svc"
+s3Endpoint: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc"
 s3Bucket: "tatara-conversations"
 # Ceph RGW ignores the region but the AWS SDK requires one for request signing.
 s3Region: "us-east-1"
