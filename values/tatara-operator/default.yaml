@@ -52,7 +52,7 @@ neo4jImage: "neo4j:2026.04.0"
 # Read-only grafana-mcp the operator provisions per Project that enables
 # spec.grafana (incident-response). Pinned to the version already proven in this
 # cluster (ai/grafana-mcp). Operator stamps it into GRAFANA_MCP_IMAGE.
-grafanaMcpImage: "grafana/mcp-grafana:0.11.4"
+grafanaMcpImage: "grafana/mcp-grafana:0.17.0"
 # Shared OpenAI Secret (ns tatara, key LLM_BINDING_API_KEY) every per-Project
 # lightrag reads. Created out-of-band (gated step in N4 runbook).
 openaiSecretName: "lightrag-openai"
