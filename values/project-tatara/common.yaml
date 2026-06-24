@@ -21,6 +21,17 @@ project:
       model: claude-opus-4-8
       permissionMode: bypassPermissions
       turnTimeoutSeconds: 1800
+    # Read-only Grafana incident-response: the operator provisions a per-project
+    # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
+    # /operator/webhooks/tatara/grafana. Secret keys: serviceAccountToken (mounted
+    # into grafana-mcp) + webhookSecret (the bearer the Grafana Tatara contact point
+    # presents). Mirrors the infrastructure Project; the SA token + webhookSecret are
+    # reused from infrastructure (same read-only Viewer), webhookSecret must equal
+    # TF_VAR_tatara_webhook_secret in terraform/grafana.
+    grafana:
+      enabled: true
+      url: http://prometheus-grafana.monitoring.svc.cluster.local
+      secretRef: tatara-grafana
     memory:
       neo4jStorage: 10Gi
       pgInstances: 2

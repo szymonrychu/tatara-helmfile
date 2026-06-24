@@ -99,3 +99,10 @@ s3KeyPrefix: "conversations"
 s3ForcePathStyle: true
 # The OBC-generated Secret (same name as the OBC) holding the AWS_* creds.
 s3SecretName: "tatara-conversations"
+# Metric-name prefix allowlist for the operator push-receiver
+# (PUSH_METRICS_ALLOWED_PREFIXES). Widened past the chart default
+# ("wrapper_,agent_,memory_,ingest_") so the Grafana-routed alert rules can see the
+# wrapper/agent/analyzer/scip/semantic/llm/push series the agent pods push-forward.
+# Without this the ccw_*/tatara_wrapper_* series are dropped as reserved_name and the
+# wrapper metric alerts stay dark.
+pushMetricsAllowedPrefixes: "wrapper_,agent_,memory_,ingest_,ccw_,tatara_wrapper_,analyzer_,scip_,semantic_,llm_,push_"
