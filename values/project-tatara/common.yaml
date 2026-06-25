@@ -34,7 +34,7 @@ project:
       secretRef: tatara-grafana
     memory:
       neo4jStorage: 10Gi
-      pgInstances: 2
+      pgInstances: 3
       pgStorage: 10Gi
     scm:
       provider: github

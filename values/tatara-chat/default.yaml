@@ -12,8 +12,11 @@ ingress:
   className: nginx
   clusterIssuer: letsencrypt-prod
 
-# cnpg postgres (cloudnative-pg/cluster subchart, alias 'postgres'): scale to 2
-# instances (1 primary + 1 replica).
+# cnpg postgres (cloudnative-pg/cluster subchart, alias 'postgres'): scale to 3
+# instances (1 primary + 2 replicas) for HA - a probe-kill or unclean restart
+# fails over instead of wedging the sole primary (mem-infrastructure incident
+# 2026-06-25: single-instance pg wedged in end-of-recovery checkpoint on stale
+# CephFS write-caps, full outage with no failover).
 postgres:
   cluster:
-    instances: 2
+    instances: 3
