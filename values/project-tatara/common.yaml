@@ -51,6 +51,9 @@ project:
         that infrastructure.
       owner: szymonrychu
       botLogin: szymonrychu-bot
+      # Bot commit-author identity for agent commits (GitHub noreply links commits
+      # to the szymonrychu-bot account by author email).
+      botEmail: 143486966+szymonrychu-bot@users.noreply.github.com
       # Issue #102: szymonrychu is the sole trusted maintainer/approver AND the
       # sole human reporter. maintainerLogins makes only his comment count as the
       # approval go-ahead; reporterLogins drops issues/comments from anyone else
