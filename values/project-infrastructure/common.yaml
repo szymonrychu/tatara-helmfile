@@ -37,6 +37,9 @@ project:
       provider: gitlab
       owner: szymonrychu
       botLogin: szymonrychu-bot
+      # Bot commit-author identity for agent commits (GitLab attributes commits to
+      # the szymonrychu-bot account by author email).
+      botEmail: sz.ymonrychu@gmail.com
       # The owner is a trusted insider: issues opened by szymonrychu go through
       # normal triage/approval, not third-party autoapprove.
       # Issue #102: szymonrychu is the sole maintainer/approver AND sole human
