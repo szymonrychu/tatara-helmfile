@@ -125,3 +125,9 @@ repositories:
       defaultBranch: main
       semanticIngest: true
       reingestSchedule: "0 6 * * *"
+  - name: tatara-observability
+    spec:
+      url: "https://github.com/szymonrychu/tatara-observability"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
