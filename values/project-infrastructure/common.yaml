@@ -11,9 +11,9 @@ project:
   spec:
     scmSecretRef: infrastructure-scm
     triggerLabel: tatara
-    maxConcurrentTasks: 3
+    maxConcurrentTasks: 5
     # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
-    maxOpenTasks: 4
+    maxOpenTasks: 6
     agent:
       effort: xhigh
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:c7efc04
