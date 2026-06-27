@@ -134,3 +134,15 @@ repositories:
       defaultBranch: main
       semanticIngest: true
       reingestSchedule: "0 6 * * *"
+  - name: tatara-documentation
+    spec:
+      url: "https://github.com/szymonrychu/tatara-documentation"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
+  - name: tatara-agent-skills
+    spec:
+      url: "https://github.com/szymonrychu/tatara-agent-skills"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
