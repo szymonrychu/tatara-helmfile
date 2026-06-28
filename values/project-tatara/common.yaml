@@ -16,7 +16,7 @@ project:
     maxOpenTasks: 6
     agent:
       effort: xhigh
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:c7efc04
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:883ef4b
       maxTurnsPerTask: 100
       model: claude-opus-4-8
       permissionMode: bypassPermissions
