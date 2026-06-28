@@ -69,6 +69,13 @@ project:
         mrScan:
           maxPerRepo: 1
           schedule: 0 * * * *
+        # Project refiner pre-step (opt-in: closedLookbackDays > 0). Before each
+        # due scan cycle the operator runs an agent that triages open + recently-
+        # closed issues across all repos: closes duplicates and already-
+        # implemented proposals, tightens scope, splits too-broad issues, files
+        # followups. The terminal sink the brainstorm lifecycle otherwise lacks.
+        refine:
+          closedLookbackDays: 30
 
 repositories:
   - name: containers
