@@ -36,9 +36,9 @@ values/
 | release                 | chart                                                | version        | ns     |
 |-------------------------|------------------------------------------------------|----------------|--------|
 | tatara-chat             | oci://harbor.szymonrichert.pl/charts/tatara-chat     | 0.0.0-b050719  | tatara |
-| tatara-operator         | oci://harbor.szymonrichert.pl/charts/tatara-operator | 0.0.0-g0f21540 | tatara |
-| project-tatara          | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.0.0-g0f21540 | tatara |
-| project-infrastructure  | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.0.0-g0f21540 | tatara |
+| tatara-operator         | oci://harbor.szymonrichert.pl/charts/tatara-operator | 0.0.0-g27290e8 | tatara |
+| project-tatara          | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.0.0-g27290e8 | tatara |
+| project-infrastructure  | oci://harbor.szymonrichert.pl/charts/tatara-project  | 0.0.0-g27290e8 | tatara |
 
 The two `project-*` releases `needs:` tatara-operator (its CRDs must exist
 first) and codify each Project plus its Repository CRs declaratively from
