@@ -50,12 +50,19 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
         ACTION_PATH: ${{ github.action_path }}
-        SHA: ${{ github.sha }}
         REPO: ${{ github.repository }}
         TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
         PY="$(command -v python3 || command -v python)"
+
+        # Key the label lookup on the CHECKED-OUT commit, not github.sha. On
+        # workflow_run consumers github.sha is the default-branch HEAD at run
+        # time, which can race ahead if a second merge lands between the ci run
+        # and the release run (reading the wrong PR's semver:* label or none).
+        # All consumers check out the right ref (push: HEAD==github.sha;
+        # workflow_run: checkout ref=head_sha), so HEAD is correct for both.
+        SHA="$(git rev-parse HEAD)"
 
         # 1. find the merged PR for the pushed commit and read its semver:* label
         level="$(gh pr list --search "$SHA" --state merged \
