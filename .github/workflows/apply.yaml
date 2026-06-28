@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
 
+# Serializes cluster applies (semver push-CD design 8a.2): coalesced
+# cd/deploy-train merges queue here rather than racing or superseding each
+# other, so at most one `helmfile apply` is in flight. (Group name diverges
+# from the spec's `cd-apply`; the existing name is kept - the property that
+# matters is the serialized, non-cancelling queue.)
 concurrency:
   group: tatara-helmfile-apply
   cancel-in-progress: false
