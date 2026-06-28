@@ -20,7 +20,7 @@ project:
       maxTurnsPerTask: 100
       model: claude-opus-4-8
       permissionMode: bypassPermissions
-      turnTimeoutSeconds: 1800
+      turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
     # /operator/webhooks/tatara/grafana. Secret keys: serviceAccountToken (mounted
