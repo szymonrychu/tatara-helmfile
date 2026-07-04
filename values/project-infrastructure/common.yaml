@@ -30,7 +30,7 @@ project:
       effortByKind:
         triageIssue: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:981cde8
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:7eb04fe
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
@@ -39,7 +39,7 @@ project:
       permissionMode: bypassPermissions
       # Pin the agent-skills install to a SHA (kills the `main` drift; component 5
       # / component 4b). Bump deliberately alongside a skills change.
-      skillsRef: 5eab53c9092ba0c8b776fa45f8a266a1d3ad70cc
+      skillsRef: 395713a0ef849fde8df5e27121840e043276eccf
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
