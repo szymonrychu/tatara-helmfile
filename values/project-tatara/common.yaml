@@ -10,9 +10,9 @@ project:
     triggerLabel: tatara
     # Per-repo fan-out: lanes run up to maxConcurrentTasks agents at once across
     # all repos.
-    # STAGE-2a token-conservation widen (2026-07-04): 2->5 (full tatara
-    # concurrency) now that G4/G5 quality instrumentation is live. brainstorm
-    # stays off (2b) + infrastructure held at 0 (2c) until 2a is observed.
+    # Realistic steady-state (2026-07-04): full concurrency + brainstorm on, to
+    # observe whether the tiering/effort/cadence improvements slow subscription
+    # burn vs the pre-improvement runaway.
     maxConcurrentTasks: 5
     # Creation budget (non-terminal Task cap). Set above maxConcurrentTasks so the
     # hourly brainstorm always has a creation slot.
@@ -90,9 +90,7 @@ project:
       priorityLabel: tatara/priority
       cron:
         brainstorm:
-          # STAGE-1 token-conservation re-enable (2026-07-04): off (largest idle
-          # Opus spend). Re-enable at steady state (Stage 2b).
-          enabled: false
+          enabled: true
           # Project-wide cap summing open agent proposals across ALL repos.
           maxOpenProposals: 10
           schedule: 0 * * * *
