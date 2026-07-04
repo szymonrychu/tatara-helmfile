@@ -15,10 +15,20 @@ project:
     # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
     agent:
-      effort: xhigh
+      # Per-kind tiering (token-conservation component 1): project-wide fallback
+      # is Opus/high; only triageIssue+review drop to Sonnet with low/medium
+      # effort. All other kinds inherit the high fallback. xhigh->high where it
+      # stays Opus.
+      effort: high
+      model: claude-opus-4-8
+      modelByKind:
+        triageIssue: claude-sonnet-5
+        review: claude-sonnet-5
+      effortByKind:
+        triageIssue: low
+        review: medium
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:8f3d880
       maxTurnsPerTask: 100
-      model: claude-opus-4-8
       permissionMode: bypassPermissions
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
