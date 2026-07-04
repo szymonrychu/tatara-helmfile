@@ -15,23 +15,14 @@ project:
     # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
     agent:
-      # Per-kind tiering (token-conservation component 1): project-wide fallback
-      # is Opus/high; only triageIssue+review drop to Sonnet with low/medium
-      # effort. All other kinds inherit the high fallback. xhigh->high where it
-      # stays Opus.
+      # Per-kind tiering (token-conservation component 1) is BLOCKED: operator
+      # main (fb8531a) has no modelByKind/effortByKind/maxTaskTokens fields on
+      # AgentSpec, so setting them here would be silently pruned by the CRD
+      # schema. Re-add once the operator carrying these fields is merged +
+      # dual-pinned in the same MR (see MEMORY.md token-conservation entry).
       effort: high
       model: claude-opus-4-8
-      modelByKind:
-        triageIssue: claude-sonnet-5
-        review: claude-sonnet-5
-      effortByKind:
-        triageIssue: low
-        review: medium
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:8f3d880
-      # Per-Task cumulative output-token runaway backstop for the turn-uncapped
-      # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
-      # telemetry; this is a safety ceiling, not a cost lever.
-      maxTaskTokens: 3000000
       maxTurnsPerTask: 100
       permissionMode: bypassPermissions
       # Pin the agent-skills install to a SHA (kills the `main` drift; component 5
