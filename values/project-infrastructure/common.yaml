@@ -11,10 +11,10 @@ project:
   spec:
     scmSecretRef: infrastructure-scm
     triggerLabel: tatara
-    # STAGE-1 token-conservation re-enable (2026-07-04): held at 0 (tatara-only
-    # observation + validates the maxConcurrentTasks=0 full-pause fix live).
-    # Restore to 5 at steady state (Stage 2c).
-    maxConcurrentTasks: 0
+    # Realistic steady-state (2026-07-04): un-held to full concurrency so both
+    # projects do real work and we can observe whether the tiering/effort/cadence
+    # improvements slow the subscription burn.
+    maxConcurrentTasks: 5
     # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
     agent:
