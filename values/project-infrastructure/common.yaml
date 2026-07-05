@@ -17,6 +17,26 @@ project:
     maxConcurrentTasks: 5
     # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
+    # Claude-subscription usage gate (STAGE 1: infrastructure first). Holds each
+    # kind of queued work once account usage crosses its ceiling; kinds absent
+    # fall through to proactive/emergency (50/80). Ladder: cheap/deferrable held
+    # early, incidents last. refine is intentionally omitted (a scan barrier, the
+    # operator never gates it). Requires the operator poller (usageEnabled) + the
+    # tatara-anthropic-usage Secret. Ceilings double as human headroom (shared
+    # account). Tune from the tatara_account_usage_* dashboard.
+    tokenBudget:
+      enabled: true
+      mode: claudeSubscription
+      pollIntervalSeconds: 180
+      spawnCeilingByKind:
+        brainstorm: 40
+        selfImprove: 55
+        healthCheck: 60
+        triageIssue: 70
+        review: 75
+        issueLifecycle: 80
+        implement: 85
+        incident: 98
     agent:
       # Per-kind tiering (token-conservation component 1): project-wide fallback
       # is Opus/high; only triageIssue+review drop to Sonnet with low/medium
