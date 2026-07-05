@@ -190,7 +190,11 @@ runs:
         fi
 
         ensure_label
-        gh pr edit "$pr_url" --repo "$PARENT" --add-label "$PR_LABEL"
+        # REST label add: `gh pr edit --add-label` runs a GraphQL query whose
+        # `login` field demands read:org on classic PATs (bot PAT has repo-only
+        # scopes) - the REST issues/labels endpoint needs just `repo`.
+        pr_num="${pr_url##*/}"
+        gh api -X POST "repos/$PARENT/issues/$pr_num/labels" -f "labels[]=$PR_LABEL" >/dev/null
         gh pr merge "$pr_url" --repo "$PARENT" --auto --squash
 
         echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
