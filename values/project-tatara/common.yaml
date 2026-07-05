@@ -100,7 +100,7 @@ project:
           enabled: true
           # Project-wide cap summing open agent proposals across ALL repos.
           maxOpenProposals: 10
-          schedule: 0 * * * *
+          schedule: 0 6 * * *
           # Activate the stale-proposal reaper (operator #199): auto-close bot
           # proposals with no human engagement after 14 days.
           staleProposalDays: 14
