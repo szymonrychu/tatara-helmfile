@@ -43,6 +43,20 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: ensure gh CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Self-hosted ARC runner images lack gh; hosted runners have it.
+        if command -v gh >/dev/null 2>&1; then exit 0; fi
+        GH_VER=2.63.2
+        curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.tar.gz" \
+          | tar -xz -C "$RUNNER_TEMP" "gh_${GH_VER}_linux_amd64/bin/gh"
+        mkdir -p "$RUNNER_TEMP/bin"
+        mv "$RUNNER_TEMP/gh_${GH_VER}_linux_amd64/bin/gh" "$RUNNER_TEMP/bin/gh"
+        echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/bin/gh" --version
+
     - name: cut tag
       id: tag
       if: ${{ inputs.mode == 'tag' }}
