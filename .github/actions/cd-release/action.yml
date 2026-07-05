@@ -1,0 +1,197 @@
+name: cd-release
+description: >-
+  Reusable tatara CD primitive. mode=tag cuts the next semver git tag from a
+  merged PR's semver:* label; mode=bump pattern-rewrites a parent repo's pin(s)
+  and opens a bot-authored auto-merge PR (coalescing into cd/deploy-train for
+  the terminal tatara-helmfile parent).
+
+inputs:
+  mode:
+    description: tag | bump
+    required: true
+  token:
+    description: bot PAT (TATARA_CD_TOKEN) for tag push + cross-repo PR creation
+    required: true
+  # --- mode=bump only ---
+  parent_repo:
+    description: "owner/name of the consumer repo to bump (e.g. szymonrychu/tatara-helmfile)"
+    required: false
+    default: ""
+  pins:
+    description: >-
+      JSON array of {file, pattern, value_template} describing the pin(s) to
+      rewrite in the parent. All pins are rewritten in ONE commit.
+    required: false
+    default: "[]"
+  new_value:
+    description: "version to write into the pins (e.g. v1.4.0)"
+    required: false
+    default: ""
+  pr_label:
+    description: label applied to the bump PR (a dependency bump is a patch)
+    required: false
+    default: "semver:patch"
+
+outputs:
+  version:
+    description: "mode=tag: the newly-cut tag (e.g. v1.4.0)"
+    value: ${{ steps.tag.outputs.version }}
+  pr_url:
+    description: "mode=bump: the opened/reused parent PR URL"
+    value: ${{ steps.bump.outputs.pr_url }}
+
+runs:
+  using: composite
+  steps:
+    - name: cut tag
+      id: tag
+      if: ${{ inputs.mode == 'tag' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        ACTION_PATH: ${{ github.action_path }}
+        REPO: ${{ github.repository }}
+        TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        PY="$(command -v python3 || command -v python)"
+
+        # Key the label lookup on the CHECKED-OUT commit, not github.sha. On
+        # workflow_run consumers github.sha is the default-branch HEAD at run
+        # time, which can race ahead if a second merge lands between the ci run
+        # and the release run (reading the wrong PR's semver:* label or none).
+        # All consumers check out the right ref (push: HEAD==github.sha;
+        # workflow_run: checkout ref=head_sha), so HEAD is correct for both.
+        SHA="$(git rev-parse HEAD)"
+
+        # 1. find the merged PR for the pushed commit and read its semver:* label
+        level="$(gh pr list --search "$SHA" --state merged \
+          --json number,labels \
+          --jq '.[0].labels[].name' \
+          | grep -oE '^semver:(major|minor|patch)$' | head -1 | cut -d: -f2 || true)"
+        if [ -z "$level" ]; then
+          echo "::error::no semver:(major|minor|patch) label on the merged PR for $SHA; refusing to tag." >&2
+          exit 1
+        fi
+        echo "significance level: $level"
+
+        # 2. compute the next tag from the latest existing semver tag (seeded)
+        git fetch --tags --force origin >/dev/null 2>&1 || true
+        latest="$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+        next="$("$PY" "$ACTION_PATH/semver-bump.py" "$latest" "$level")"
+        echo "latest=${latest:-<seed>} level=$level next=$next"
+
+        # 3. push the tag (bot-authored, deterministic remote auth)
+        git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+        if git rev-parse -q --verify "refs/tags/$next" >/dev/null; then
+          echo "tag $next already exists locally; skipping create"
+        else
+          git tag "$next"
+        fi
+        git push origin "refs/tags/$next"
+
+        echo "version=$next" >> "$GITHUB_OUTPUT"
+
+    - name: bump parent
+      id: bump
+      if: ${{ inputs.mode == 'bump' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TOKEN: ${{ inputs.token }}
+        ACTION_PATH: ${{ github.action_path }}
+        PARENT: ${{ inputs.parent_repo }}
+        PINS: ${{ inputs.pins }}
+        NEW_VALUE: ${{ inputs.new_value }}
+        PR_LABEL: ${{ inputs.pr_label }}
+        SELF_REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        PY="$(command -v python3 || command -v python)"
+
+        if [ -z "$PARENT" ] || [ -z "$NEW_VALUE" ]; then
+          echo "::error::mode=bump requires parent_repo and new_value." >&2
+          exit 1
+        fi
+
+        component="${SELF_REPO##*/}"
+        work="$(mktemp -d)"
+        git clone "https://x-access-token:${TOKEN}@github.com/${PARENT}.git" "$work"
+        git -C "$work" config user.name "szymonrychu-bot"
+        git -C "$work" config user.email "szymonrychu-bot@users.noreply.github.com"
+        cd "$work"
+
+        ensure_label() {
+          # EnsureLabel-equivalent: create the managed semver label if missing
+          # (operator owns the canonical colors; this is a safety net).
+          gh label create "$PR_LABEL" --repo "$PARENT" --color 0e8a16 \
+            --description "tatara CD propagation bump" 2>/dev/null || true
+        }
+
+        open_or_reuse_pr() {
+          local branch="$1" title="$2" body="$3" url
+          url="$(gh pr list --repo "$PARENT" --head "$branch" --state open \
+            --json url --jq '.[0].url' || true)"
+          if [ -z "$url" ]; then
+            url="$(gh pr create --repo "$PARENT" --base main --head "$branch" \
+              --title "$title" --body "$body")"
+          fi
+          echo "$url"
+        }
+
+        if [ "$PARENT" = "szymonrychu/tatara-helmfile" ]; then
+          # === terminal hop: coalesce into the cd/deploy-train branch ===
+          # Each component adds/updates ONLY its own pin as a SEPARATE commit on
+          # the shared branch (so a bad pin reverts without dropping the others).
+          branch="cd/deploy-train"
+          pushed=""
+          for attempt in $(seq 1 8); do
+            git fetch origin --prune >/dev/null 2>&1
+            if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+              git checkout -B "$branch" "origin/$branch"
+            else
+              git checkout -B "$branch" "origin/main"
+            fi
+            "$PY" "$ACTION_PATH/apply-pins.py" "$PINS" "$NEW_VALUE"
+            git add -A
+            if git diff --cached --quiet; then
+              echo "deploy-train already carries ${component}@${NEW_VALUE}; nothing to commit"
+              pushed="noop"
+              break
+            fi
+            git commit -m "cd: bump ${component} to ${NEW_VALUE}"
+            if git push origin "HEAD:$branch"; then
+              pushed="yes"
+              break
+            fi
+            echo "deploy-train advanced under us; rebase-retry ${attempt}"
+            sleep "$attempt"
+          done
+          if [ -z "$pushed" ]; then
+            echo "::error::could not push to cd/deploy-train after 8 rebase-retries." >&2
+            exit 1
+          fi
+          pr_url="$(open_or_reuse_pr "$branch" "cd: deploy-train" \
+            "Automated deploy-train. Coalesced component pin bumps; each commit is one component. Auto-merges on a green helmfile diff.")"
+        else
+          # === non-terminal parent (e.g. wrapper): independent per-bump PR ===
+          branch="cd/bump-${component}-${NEW_VALUE}"
+          git checkout -B "$branch" "origin/main"
+          "$PY" "$ACTION_PATH/apply-pins.py" "$PINS" "$NEW_VALUE"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "${PARENT} already pins ${component}@${NEW_VALUE}; nothing to do"
+            exit 0
+          fi
+          git commit -m "cd: bump ${component} to ${NEW_VALUE}"
+          git push -f origin "HEAD:$branch"
+          pr_url="$(open_or_reuse_pr "$branch" "cd: bump ${component} to ${NEW_VALUE}" \
+            "Automated dependency bump of ${component} to ${NEW_VALUE}.")"
+        fi
+
+        ensure_label
+        gh pr edit "$pr_url" --repo "$PARENT" --add-label "$PR_LABEL"
+        gh pr merge "$pr_url" --repo "$PARENT" --auto --squash
+
+        echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+        echo "opened/updated parent PR: $pr_url"
