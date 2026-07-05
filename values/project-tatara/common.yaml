@@ -56,7 +56,14 @@ project:
     memory:
       neo4jStorage: 10Gi
       pgInstances: 3
-      pgStorage: 10Gi
+      # Bumped 10Gi -> 20Gi 2026-07-05 after the mem-tatara-pg WAL-fill incident:
+      # a replica down for days held a replication slot, WAL accumulated until the
+      # 10Gi CephFS quota was exceeded, crashlooping pg-1/pg-2 and dropping the
+      # cluster below memory quorum -> every tatara Task gated ~4h. Live storage was
+      # expanded to 20Gi as incident response; this re-asserts it so the operator's
+      # CNPG apply matches live (a shrink back to 10Gi is rejected by the CNPG
+      # webhook, which itself wedges the memory apply). See MEMORY.md.
+      pgStorage: 20Gi
     scm:
       provider: github
       guidance: >-
