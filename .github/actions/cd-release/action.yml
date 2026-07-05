@@ -102,7 +102,10 @@ runs:
         else
           git tag "$next"
         fi
-        git push origin "refs/tags/$next"
+        # Push via token URL: checkout's persisted credential is the default
+        # GITHUB_TOKEN, read-only on repos with restrictive default workflow
+        # permissions (wrapper). Mirrors bump mode's authenticated URL.
+        git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "refs/tags/$next"
 
         echo "version=$next" >> "$GITHUB_OUTPUT"
 
