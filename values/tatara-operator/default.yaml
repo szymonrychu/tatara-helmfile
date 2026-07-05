@@ -73,7 +73,7 @@ scmSecretName: "tatara-scm"
 imagePullSecret: "regcred"
 
 # Ingester image the ingest Job runs (must be published to harbor first).
-ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:c887f22"
+ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:v0.2.10"
 
 # S3 conversation persistence (issue #114). The operator + wrapper store/restore
 # each issue's Claude conversation transcript in this bucket so a fresh pod
