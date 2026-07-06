@@ -53,6 +53,13 @@ project:
       enabled: true
       url: http://prometheus-grafana.monitoring.svc.cluster.local
       secretRef: tatara-grafana
+    # Post-merge documentation agent: a merge to any enrolled component's
+    # default branch spawns a documentation Task that updates the central docs
+    # repo (tatara-documentation, already enrolled below) if the change is
+    # doc-relevant, opening an auto-merge MR gated on mkdocs build --strict.
+    documentation:
+      enabled: true
+      repo: "https://github.com/szymonrychu/tatara-documentation"
     memory:
       neo4jStorage: 10Gi
       pgInstances: 3
