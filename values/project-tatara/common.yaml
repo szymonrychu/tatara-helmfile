@@ -35,7 +35,12 @@ project:
     memory:
       neo4jStorage: 10Gi
       pgInstances: 3
-      pgStorage: 10Gi
+      # 2026-07-06 incident: a WAL burst during a standby resync overran the
+      # operator-default 2Gi WAL volume (max_wal_size 1Gi + max_slot_wal_keep_size
+      # 1Gi leaves no headroom), crashlooping both replicas. Sized to 10Gi. Data
+      # bumped 10->20Gi in the 2026-07-05 WAL-fill incident; re-asserted here.
+      pgStorage: 20Gi
+      pgWalStorage: 10Gi
     scm:
       provider: github
       guidance: >-
