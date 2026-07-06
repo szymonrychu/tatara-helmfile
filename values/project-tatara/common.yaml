@@ -127,6 +127,12 @@ project:
           closedLookbackDays: 30
 
 repositories:
+  - name: tatara
+    spec:
+      url: "https://github.com/szymonrychu/tatara"
+      defaultBranch: main
+      semanticIngest: true
+      reingestSchedule: "0 6 * * *"
   - name: tatara-helmfile
     spec:
       url: "https://github.com/szymonrychu/tatara-helmfile"
