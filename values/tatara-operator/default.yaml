@@ -46,7 +46,7 @@ agentScheduling:
 # Per-Project memory stack images (the operator stamps these into the native
 # objects it provisions per Project). memoryBaseUrl removed in N4: each Project
 # now exposes its own endpoint via status.memory.endpoint.
-memoryImage: "harbor.szymonrichert.pl/containers/tatara-memory:af70d94"
+memoryImage: "harbor.szymonrichert.pl/containers/tatara-memory:v0.4.2"
 lightragImage: "harbor.szymonrichert.pl/proxy-ghcr/hkuds/lightrag@sha256:67ccf8d9f74eb29da872bf8b3e6513605f5ac601fb0509c5b0ca16d98d2d307d"
 neo4jImage: "neo4j:2026.04.0"
 # Read-only grafana-mcp the operator provisions per Project that enables
@@ -73,7 +73,7 @@ scmSecretName: "tatara-scm"
 imagePullSecret: "regcred"
 
 # Ingester image the ingest Job runs (must be published to harbor first).
-ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:c887f22"
+ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:v0.2.10"
 
 # S3 conversation persistence (issue #114). The operator + wrapper store/restore
 # each issue's Claude conversation transcript in this bucket so a fresh pod
@@ -106,3 +106,16 @@ s3SecretName: "tatara-conversations"
 # Without this the ccw_*/tatara_wrapper_* series are dropped as reserved_name and the
 # wrapper metric alerts stay dark.
 pushMetricsAllowedPrefixes: "wrapper_,agent_,memory_,ingest_,ccw_,tatara_wrapper_,analyzer_,scip_,semantic_,llm_,push_"
+
+# Token-budget admission gate (issue #189) in claudeSubscription mode: gate on the
+# wrapper-reported Claude 5h/weekly usage percentages (agents read their own usage %
+# from Claude API responses and report it back). Pause proactive work (brainstorm/
+# implement/review) at 50% and incident work at 80% of the window, resuming on reset.
+# claudeSubscription mode needs NO /api/oauth/usage OAuth token - the shared fleet
+# `claude setup-token` lacks the user:profile scope that endpoint requires (403), so
+# usageEnabled stays false and this wrapper-reported path is used instead. No
+# customWindow inputs (resetSchedule/window/tokenLimit) are needed in this mode.
+tokenBudgetEnabled: true
+tokenBudgetMode: "claudeSubscription"
+tokenBudgetProactivePercent: 50
+tokenBudgetEmergencyPercent: 80

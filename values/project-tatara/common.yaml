@@ -10,16 +10,37 @@ project:
     triggerLabel: tatara
     # Per-repo fan-out: lanes run up to maxConcurrentTasks agents at once across
     # all repos.
+    # Realistic steady-state (2026-07-04): full concurrency + brainstorm on, to
+    # observe whether the tiering/effort/cadence improvements slow subscription
+    # burn vs the pre-improvement runaway.
     maxConcurrentTasks: 5
     # Creation budget (non-terminal Task cap). Set above maxConcurrentTasks so the
     # hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
     agent:
-      effort: xhigh
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:8f3d880
-      maxTurnsPerTask: 100
+      # Per-kind tiering (token-conservation component 1): project-wide fallback
+      # is Opus/high; only triageIssue+review drop to Sonnet with low/medium
+      # effort. All other kinds (brainstorm, refine, implement, incident,
+      # issueLifecycle, selfImprove; healthCheck shares Kind=brainstorm) inherit
+      # the high fallback. xhigh->high everywhere it stays Opus.
+      effort: high
       model: claude-opus-4-8
+      modelByKind:
+        triageIssue: claude-sonnet-5
+        review: claude-sonnet-5
+      effortByKind:
+        triageIssue: low
+        review: medium
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v0.1.11
+      # Per-Task cumulative output-token runaway backstop for the turn-uncapped
+      # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
+      # telemetry; this is a safety ceiling, not a cost lever.
+      maxTaskTokens: 3000000
+      maxTurnsPerTask: 100
       permissionMode: bypassPermissions
+      # Pin the agent-skills install to a SHA (kills the `main` drift; component 5
+      # / component 4b). Bump deliberately alongside a skills change.
+      skillsRef: fc40288256c30076535b0fd8efd1e224a3ffa28d
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
@@ -32,6 +53,13 @@ project:
       enabled: true
       url: http://prometheus-grafana.monitoring.svc.cluster.local
       secretRef: tatara-grafana
+    # Post-merge documentation agent: a merge to any enrolled component's
+    # default branch spawns a documentation Task that updates the central docs
+    # repo (tatara-documentation, already enrolled below) if the change is
+    # doc-relevant, opening an auto-merge MR gated on mkdocs build --strict.
+    documentation:
+      enabled: true
+      repo: "https://github.com/szymonrychu/tatara-documentation"
     memory:
       neo4jStorage: 10Gi
       pgInstances: 3
@@ -77,17 +105,24 @@ project:
           enabled: true
           # Project-wide cap summing open agent proposals across ALL repos.
           maxOpenProposals: 10
-          schedule: 0 * * * *
+          schedule: 0 6 * * *
+          # Activate the stale-proposal reaper (operator #199): auto-close bot
+          # proposals with no human engagement after 14 days.
+          staleProposalDays: 14
           sources:
             - docs
             - memory
             - internet
         issueScan:
           maxPerRepo: 1
-          schedule: 0 * * * *
+          # Stretched hourly -> every 4h (token conservation); webhooks cover real
+          # issue activity, so the backstop scan can be less frequent.
+          schedule: 0 */4 * * *
         mrScan:
           maxPerRepo: 1
-          schedule: 0 * * * *
+          # Stretched hourly -> every 2h (token conservation); webhooks cover MR
+          # events, this is the CI/merge-progression backstop.
+          schedule: 0 */2 * * *
         # Project refiner pre-step (opt-in: closedLookbackDays > 0). Before each
         # due scan cycle the operator runs an agent that triages open + recently-
         # closed issues across all repos: closes duplicates and already-
@@ -97,6 +132,12 @@ project:
           closedLookbackDays: 30
 
 repositories:
+  # tatara docs repo dropped 2026-07-07: it is private and szymonrychu-bot is
+  # not a collaborator, so every clone 404s (`git clone ... tatara: exit 128`).
+  # It sorted first (prefix of all tatara-*) so it was the deterministic primary
+  # repo (projectscan.go sort-by-name) -> project-scoped refine/brainstorm/docs
+  # tasks BootCrashLoop on the primary clone. Removing it makes tatara-agent-skills
+  # the new (bot-clonable) primary. Re-add only if the bot is granted access.
   - name: tatara-helmfile
     spec:
       url: "https://github.com/szymonrychu/tatara-helmfile"

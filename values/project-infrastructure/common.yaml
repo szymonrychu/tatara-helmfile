@@ -11,15 +11,35 @@ project:
   spec:
     scmSecretRef: infrastructure-scm
     triggerLabel: tatara
+    # Realistic steady-state (2026-07-04): un-held to full concurrency so both
+    # projects do real work and we can observe whether the tiering/effort/cadence
+    # improvements slow the subscription burn.
     maxConcurrentTasks: 5
     # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
     agent:
-      effort: xhigh
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:8f3d880
-      maxTurnsPerTask: 100
+      # Per-kind tiering (token-conservation component 1): project-wide fallback
+      # is Opus/high; only triageIssue+review drop to Sonnet with low/medium
+      # effort. All other kinds inherit the high fallback. xhigh->high where it
+      # stays Opus.
+      effort: high
       model: claude-opus-4-8
+      modelByKind:
+        triageIssue: claude-sonnet-5
+        review: claude-sonnet-5
+      effortByKind:
+        triageIssue: low
+        review: medium
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v0.1.11
+      # Per-Task cumulative output-token runaway backstop for the turn-uncapped
+      # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
+      # telemetry; this is a safety ceiling, not a cost lever.
+      maxTaskTokens: 3000000
+      maxTurnsPerTask: 100
       permissionMode: bypassPermissions
+      # Pin the agent-skills install to a SHA (kills the `main` drift; component 5
+      # / component 4b). Bump deliberately alongside a skills change.
+      skillsRef: fc40288256c30076535b0fd8efd1e224a3ffa28d
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
@@ -58,17 +78,24 @@ project:
           enabled: true
           # Project-wide cap summing open agent proposals across all 5 repos.
           maxOpenProposals: 10
-          schedule: 0 * * * *
+          schedule: 0 6 * * *
+          # Activate the stale-proposal reaper (operator #199): auto-close bot
+          # proposals with no human engagement after 14 days.
+          staleProposalDays: 14
           sources:
             - docs
             - memory
             - internet
         issueScan:
           maxPerRepo: 1
-          schedule: 0 * * * *
+          # Stretched hourly -> every 4h (token conservation); webhooks cover real
+          # issue activity, so the backstop scan can be less frequent.
+          schedule: 0 */4 * * *
         mrScan:
           maxPerRepo: 1
-          schedule: 0 * * * *
+          # Stretched hourly -> every 2h (token conservation); webhooks cover MR
+          # events, this is the CI/merge-progression backstop.
+          schedule: 0 */2 * * *
         # Project refiner pre-step (opt-in: closedLookbackDays > 0). Before each
         # due scan cycle the operator runs an agent that triages open + recently-
         # closed issues across all repos: closes duplicates and already-
