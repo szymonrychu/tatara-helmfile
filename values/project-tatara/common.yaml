@@ -134,12 +134,12 @@ project:
           closedLookbackDays: 30
 
 repositories:
-  - name: tatara
-    spec:
-      url: "https://github.com/szymonrychu/tatara"
-      defaultBranch: main
-      semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+  # tatara docs repo dropped 2026-07-07: it is private and szymonrychu-bot is
+  # not a collaborator, so every clone 404s (`git clone ... tatara: exit 128`).
+  # It sorted first (prefix of all tatara-*) so it was the deterministic primary
+  # repo (projectscan.go sort-by-name) -> project-scoped refine/brainstorm/docs
+  # tasks BootCrashLoop on the primary clone. Removing it makes tatara-agent-skills
+  # the new (bot-clonable) primary. Re-add only if the bot is granted access.
   - name: tatara-helmfile
     spec:
       url: "https://github.com/szymonrychu/tatara-helmfile"
