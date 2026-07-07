@@ -106,3 +106,16 @@ s3SecretName: "tatara-conversations"
 # Without this the ccw_*/tatara_wrapper_* series are dropped as reserved_name and the
 # wrapper metric alerts stay dark.
 pushMetricsAllowedPrefixes: "wrapper_,agent_,memory_,ingest_,ccw_,tatara_wrapper_,analyzer_,scip_,semantic_,llm_,push_"
+
+# Token-budget admission gate (issue #189) in claudeSubscription mode: gate on the
+# wrapper-reported Claude 5h/weekly usage percentages (agents read their own usage %
+# from Claude API responses and report it back). Pause proactive work (brainstorm/
+# implement/review) at 50% and incident work at 80% of the window, resuming on reset.
+# claudeSubscription mode needs NO /api/oauth/usage OAuth token - the shared fleet
+# `claude setup-token` lacks the user:profile scope that endpoint requires (403), so
+# usageEnabled stays false and this wrapper-reported path is used instead. No
+# customWindow inputs (resetSchedule/window/tokenLimit) are needed in this mode.
+tokenBudgetEnabled: true
+tokenBudgetMode: "claudeSubscription"
+tokenBudgetProactivePercent: 50
+tokenBudgetEmergencyPercent: 80
