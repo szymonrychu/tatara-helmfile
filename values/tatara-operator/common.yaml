@@ -6,5 +6,5 @@ image:
   # g-sha recovery pin: semver release (vX.Y.Z) is down platform-wide while
   # TATARA_CD_TOKEN is expired (cd-release tag job 401). ci-shared.yml still
   # publishes the :<short-sha> image on push to main. Re-pin to semver once the
-  # token is rotated and releases resume. Operator main 1c4aa040 (#276).
-  tag: "1c4aa04"
+  # token is rotated and releases resume. Operator main 26098cd (#277, role-harness plugins).
+  tag: "26098cd"
