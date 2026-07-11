@@ -8,6 +8,10 @@ project:
   spec:
     scmSecretRef: tatara-scm
     triggerLabel: tatara
+    # item-4a activation: requires tatara-operator >= the release that ships
+    # Project.spec.autoApproveTataraProposals (CRD field). Do not apply this
+    # chart bump before that operator release is merged and published.
+    autoApproveTataraProposals: true
     # Per-repo fan-out: lanes run up to maxConcurrentTasks agents at once across
     # all repos.
     # Realistic steady-state (2026-07-04): full concurrency + brainstorm on, to

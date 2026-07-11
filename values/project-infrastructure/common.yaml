@@ -11,6 +11,10 @@ project:
   spec:
     scmSecretRef: infrastructure-scm
     triggerLabel: tatara
+    # item-4a activation: requires tatara-operator >= the release that ships
+    # Project.spec.autoApproveTataraProposals (CRD field). Do not apply this
+    # chart bump before that operator release is merged and published.
+    autoApproveTataraProposals: true
     # Realistic steady-state (2026-07-04): un-held to full concurrency so both
     # projects do real work and we can observe whether the tiering/effort/cadence
     # improvements slow the subscription burn.
