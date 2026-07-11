@@ -40,7 +40,7 @@ project:
       permissionMode: bypassPermissions
       # Pin the agent-skills install to a SHA (kills the `main` drift; component 5
       # / component 4b). Bump deliberately alongside a skills change.
-      skillsRef: fe0bc0b1a80ec11f91d33a173deb17d0d7afada9
+      skillsRef: 364b52b4d91b84e4e37ece45751cd96377bb89ea
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
