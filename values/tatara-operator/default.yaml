@@ -57,6 +57,23 @@ grafanaMcpImage: "grafana/mcp-grafana:0.17.0"
 # lightrag reads. Created out-of-band (gated step in N4 runbook).
 openaiSecretName: "lightrag-openai"
 
+# Per-Project memory monitoring (issue #203 / #200 point 1). The operator stamps
+# these labels (MEMORY_MONITOR_LABELS, a JSON object like agentScheduling above)
+# onto the per-Project memory ServiceMonitor, PrometheusRule, and cnpg PodMonitor
+# it provisions, so the cluster kube-prometheus-stack serviceMonitorSelector /
+# ruleSelector match them. The chart bakes no default (cluster-agnostic, rule 14).
+# release=prometheus is the label this cluster's ruleSelector requires: the only
+# rule group Prometheus loads is the stack's own, from file
+# monitoring-prometheus-kube-prometheus-*-rules (kube-prometheus-stack release
+# "prometheus" in ns monitoring), and the memory PrometheusRule was absent until
+# labelled. The memory ServiceMonitor is already scraped (serviceMonitorSelector
+# is broader here), so this is a no-op for it and the knob that activates the
+# memory alerts. This cluster shares one selector label across both selectors
+# (kube-prometheus-stack default); a cluster that splits them needs a second knob.
+memoryMonitoring:
+  additionalLabels:
+    release: prometheus
+
 # In-cluster service endpoints.
 oidcIssuer: "https://auth.szymonrichert.pl/realms/master"
 oidcAudience: "tatara-operator"
