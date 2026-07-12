@@ -34,7 +34,7 @@ project:
       effortByKind:
         triageIssue: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v0.2.1
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v0.3.0
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
