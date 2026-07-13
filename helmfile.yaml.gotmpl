@@ -7,7 +7,6 @@ helmDefaults:
   # default 5m. Helm v4 renamed --atomic to --rollback-on-failure.
   timeout: 900
   syncArgs:
-    - --rollback-on-failure
     # helm 4 applies server-side (--server-side=auto). --force-conflicts lets the
     # GitOps deploy reclaim fields previously owned by kubectl-set/kubectl-patch
     # (the deploy bot is the sole owner of these releases). NOTE: the old
@@ -46,6 +45,11 @@ releases:
   namespace: tatara
   createNamespace: true
   version: 0.1.2
+  # Task-centric redesign removes agent-to-agent chat; uninstall the release.
+  # ACCEPTED DATA LOSS: installed:false deletes the CNPG Cluster CR and CNPG
+  # garbage-collects the PVCs (chat_handoffs has no backup, no retain annotation).
+  # KEEP this block so helmfile tracks the uninstall.
+  installed: false
   labels:
     purpose: tatara
     application: tatara-chat
