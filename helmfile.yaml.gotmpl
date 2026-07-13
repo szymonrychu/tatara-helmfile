@@ -65,7 +65,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-operator
   namespace: tatara
   createNamespace: true
-  version: 1.0.0
+  version: 1.0.1
   labels:
     purpose: tatara
     application: tatara-operator
@@ -84,7 +84,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
   namespace: tatara
   createNamespace: true
-  version: 1.0.0
+  version: 1.0.1
   needs:
   - tatara/tatara-operator
   labels:
@@ -96,7 +96,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
   namespace: tatara
   createNamespace: true
-  version: 1.0.0
+  version: 1.0.1
   needs:
   - tatara/tatara-operator
   labels:
