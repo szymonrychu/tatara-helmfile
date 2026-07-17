@@ -18,7 +18,12 @@ project:
     # Realistic steady-state (2026-07-04): un-held to full concurrency so both
     # projects do real work and we can observe whether the tiering/effort/cadence
     # improvements slow the subscription burn.
-    maxConcurrentAgents: 5
+    # TEMPORARILY 0 for the operator claim-lease rollout (tatara-operator#347).
+    # See values/project-tatara/common.yaml for the full rationale: the claim
+    # lease's budget < TTL invariant is a property of the binary, and the OLD
+    # operator has no handler budget, so a mixed-version rollout can re-claim a
+    # live claim and duplicate forge writes. Restore to 5 once the roll is done.
+    maxConcurrentAgents: 0
     # Above maxConcurrentAgents so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
     agent:
