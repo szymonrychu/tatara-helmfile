@@ -94,11 +94,6 @@ project:
           # Stretched hourly -> every 4h (token conservation); webhooks cover real
           # issue activity, so the backstop scan can be less frequent.
           schedule: 0 */4 * * *
-        mrScan:
-          maxPerRepo: 1
-          # Stretched hourly -> every 2h (token conservation); webhooks cover MR
-          # events, this is the CI/merge-progression backstop.
-          schedule: 0 */2 * * *
         # Project refiner pre-step (opt-in: closedLookbackDays > 0). Before each
         # due scan cycle the operator runs an agent that triages open + recently-
         # closed issues across all repos: closes duplicates and already-
