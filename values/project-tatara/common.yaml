@@ -17,15 +17,7 @@ project:
     # Realistic steady-state (2026-07-04): full concurrency + brainstorm on, to
     # observe whether the tiering/effort/cadence improvements slow subscription
     # burn vs the pre-improvement runaway.
-    # TEMPORARILY 0 for the operator claim-lease rollout (tatara-operator#347).
-    # The new /outcome claim lease is sound only because OutcomeHandlerBudget (3m)
-    # < OutcomeClaimTTL (5m) - a handler cannot outlive its own claim. That is a
-    # property of the BINARY, and the OLD operator has no handler budget at all,
-    # so across a mixed-version rolling update a NEW replica can re-claim a claim
-    # whose OLD handler is still running and re-execute it - duplicate forge
-    # writes from one outcome. No agent pod means no /outcome in flight means no
-    # claim to steal. Restore to 5 once every replica is on the new image.
-    maxConcurrentAgents: 0
+    maxConcurrentAgents: 5
     # Creation budget (non-terminal Task cap). Set above maxConcurrentAgents so the
     # hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
