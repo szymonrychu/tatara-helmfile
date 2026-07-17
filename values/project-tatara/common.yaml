@@ -8,34 +8,47 @@ project:
   spec:
     scmSecretRef: tatara-scm
     triggerLabel: tatara
-    # item-4a activation: requires tatara-operator >= the release that ships
-    # Project.spec.autoApproveTataraProposals (CRD field). Do not apply this
-    # chart bump before that operator release is merged and published.
-    autoApproveTataraProposals: true
-    # Per-repo fan-out: lanes run up to maxConcurrentAgents agents at once across
+    # Per-repo fan-out: lanes run up to maxConcurrentTasks agents at once across
     # all repos.
     # Realistic steady-state (2026-07-04): full concurrency + brainstorm on, to
     # observe whether the tiering/effort/cadence improvements slow subscription
     # burn vs the pre-improvement runaway.
-    maxConcurrentAgents: 5
-    # Creation budget (non-terminal Task cap). Set above maxConcurrentAgents so the
+    maxConcurrentTasks: 5
+    # Creation budget (non-terminal Task cap). Set above maxConcurrentTasks so the
     # hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
+    # Claude-subscription usage gate (STAGE 2: tatara held OFF until infrastructure
+    # proves the poller + ladder). Flip enabled:true in a follow-up MR once the
+    # tatara_account_usage_* metrics populate and infrastructure gates cleanly.
+    # The ladder is identical to infrastructure; refine omitted (scan barrier).
+    tokenBudget:
+      enabled: false
+      mode: claudeSubscription
+      pollIntervalSeconds: 180
+      spawnCeilingByKind:
+        brainstorm: 40
+        selfImprove: 55
+        healthCheck: 60
+        triageIssue: 70
+        review: 75
+        issueLifecycle: 80
+        implement: 85
+        incident: 98
     agent:
       # Per-kind tiering (token-conservation component 1): project-wide fallback
-      # is Opus/high; only clarify+review drop to Sonnet with low/medium
+      # is Opus/high; only triageIssue+review drop to Sonnet with low/medium
       # effort. All other kinds (brainstorm, refine, implement, incident,
-      # documentation) inherit the high fallback. xhigh->high everywhere it
-      # stays Opus.
+      # issueLifecycle, selfImprove; healthCheck shares Kind=brainstorm) inherit
+      # the high fallback. xhigh->high everywhere it stays Opus.
       effort: high
       model: claude-opus-4-8
       modelByKind:
-        clarify: claude-sonnet-5
+        triageIssue: claude-sonnet-5
         review: claude-sonnet-5
       effortByKind:
-        clarify: low
+        triageIssue: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.0.8
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v0.1.3
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
@@ -44,7 +57,7 @@ project:
       permissionMode: bypassPermissions
       # Pin the agent-skills install to a SHA (kills the `main` drift; component 5
       # / component 4b). Bump deliberately alongside a skills change.
-      skillsRef: 039408c61c2c446ca103b947ac4a1a1acb17955a
+      skillsRef: 395713a0ef849fde8df5e27121840e043276eccf
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
@@ -57,22 +70,10 @@ project:
       enabled: true
       url: http://prometheus-grafana.monitoring.svc.cluster.local
       secretRef: tatara-grafana
-    # Post-merge documentation agent: a merge to any enrolled component's
-    # default branch spawns a documentation Task that updates the central docs
-    # repo (tatara-documentation, already enrolled below) if the change is
-    # doc-relevant, opening an auto-merge MR gated on mkdocs build --strict.
-    documentation:
-      enabled: true
-      repo: "https://github.com/szymonrychu/tatara-documentation"
     memory:
       neo4jStorage: 10Gi
       pgInstances: 3
-      # 2026-07-06 incident: a WAL burst during a standby resync overran the
-      # operator-default 2Gi WAL volume (max_wal_size 1Gi + max_slot_wal_keep_size
-      # 1Gi leaves no headroom), crashlooping both replicas. Sized to 10Gi. Data
-      # bumped 10->20Gi in the 2026-07-05 WAL-fill incident; re-asserted here.
-      pgStorage: 20Gi
-      pgWalStorage: 10Gi
+      pgStorage: 10Gi
     scm:
       provider: github
       guidance: >-
@@ -100,6 +101,7 @@ project:
         - szymonrychu
       reporterLogins:
         - szymonrychu
+      approvalLabel: tatara/awaiting-approval
       mergePolicy: afterApproval
       prReactionScope: labeledOrMentioned
       priorityLabel: tatara/priority
@@ -108,7 +110,7 @@ project:
           enabled: true
           # Project-wide cap summing open agent proposals across ALL repos.
           maxOpenProposals: 10
-          schedule: 0 6 * * *
+          schedule: 0 * * * *
           # Activate the stale-proposal reaper (operator #199): auto-close bot
           # proposals with no human engagement after 14 days.
           staleProposalDays: 14
@@ -135,12 +137,6 @@ project:
           closedLookbackDays: 30
 
 repositories:
-  # tatara docs repo dropped 2026-07-07: it is private and szymonrychu-bot is
-  # not a collaborator, so every clone 404s (`git clone ... tatara: exit 128`).
-  # It sorted first (prefix of all tatara-*) so it was the deterministic primary
-  # repo (projectscan.go sort-by-name) -> project-scoped refine/brainstorm/docs
-  # tasks BootCrashLoop on the primary clone. Removing it makes tatara-agent-skills
-  # the new (bot-clonable) primary. Re-add only if the bot is granted access.
   - name: tatara-helmfile
     spec:
       url: "https://github.com/szymonrychu/tatara-helmfile"

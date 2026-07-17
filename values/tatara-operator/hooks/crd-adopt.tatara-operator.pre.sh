@@ -21,8 +21,7 @@ readonly CRDS=(
   projects.tatara.dev
   repositories.tatara.dev
   tasks.tatara.dev
-  issues.tatara.dev
-  mergerequests.tatara.dev
+  subtasks.tatara.dev
   queuedevents.tatara.dev
 )
 

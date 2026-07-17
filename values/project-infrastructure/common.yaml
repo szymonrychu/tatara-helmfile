@@ -11,30 +11,46 @@ project:
   spec:
     scmSecretRef: infrastructure-scm
     triggerLabel: tatara
-    # item-4a activation: requires tatara-operator >= the release that ships
-    # Project.spec.autoApproveTataraProposals (CRD field). Do not apply this
-    # chart bump before that operator release is merged and published.
-    autoApproveTataraProposals: true
     # Realistic steady-state (2026-07-04): un-held to full concurrency so both
     # projects do real work and we can observe whether the tiering/effort/cadence
     # improvements slow the subscription burn.
-    maxConcurrentAgents: 5
-    # Above maxConcurrentAgents so the hourly brainstorm always has a creation slot.
+    maxConcurrentTasks: 5
+    # Above maxConcurrentTasks so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
+    # Claude-subscription usage gate (STAGE 1: infrastructure first). Holds each
+    # kind of queued work once account usage crosses its ceiling; kinds absent
+    # fall through to proactive/emergency (50/80). Ladder: cheap/deferrable held
+    # early, incidents last. refine is intentionally omitted (a scan barrier, the
+    # operator never gates it). Requires the operator poller (usageEnabled) + the
+    # tatara-anthropic-usage Secret. Ceilings double as human headroom (shared
+    # account). Tune from the tatara_account_usage_* dashboard.
+    tokenBudget:
+      enabled: true
+      mode: claudeSubscription
+      pollIntervalSeconds: 180
+      spawnCeilingByKind:
+        brainstorm: 40
+        selfImprove: 55
+        healthCheck: 60
+        triageIssue: 70
+        review: 75
+        issueLifecycle: 80
+        implement: 85
+        incident: 98
     agent:
       # Per-kind tiering (token-conservation component 1): project-wide fallback
-      # is Opus/high; only clarify+review drop to Sonnet with low/medium
+      # is Opus/high; only triageIssue+review drop to Sonnet with low/medium
       # effort. All other kinds inherit the high fallback. xhigh->high where it
       # stays Opus.
       effort: high
       model: claude-opus-4-8
       modelByKind:
-        clarify: claude-sonnet-5
+        triageIssue: claude-sonnet-5
         review: claude-sonnet-5
       effortByKind:
-        clarify: low
+        triageIssue: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.0.8
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v0.1.3
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
@@ -43,7 +59,7 @@ project:
       permissionMode: bypassPermissions
       # Pin the agent-skills install to a SHA (kills the `main` drift; component 5
       # / component 4b). Bump deliberately alongside a skills change.
-      skillsRef: 039408c61c2c446ca103b947ac4a1a1acb17955a
+      skillsRef: 395713a0ef849fde8df5e27121840e043276eccf
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
@@ -73,6 +89,7 @@ project:
         - szymonrychu
       reporterLogins:
         - szymonrychu
+      approvalLabel: tatara/awaiting-approval
       mergePolicy: afterApproval
       prReactionScope: labeledOrMentioned
       priorityLabel: tatara/priority
@@ -81,7 +98,7 @@ project:
           enabled: true
           # Project-wide cap summing open agent proposals across all 5 repos.
           maxOpenProposals: 10
-          schedule: 0 6 * * *
+          schedule: 0 * * * *
           # Activate the stale-proposal reaper (operator #199): auto-close bot
           # proposals with no human engagement after 14 days.
           staleProposalDays: 14

@@ -57,23 +57,6 @@ grafanaMcpImage: "grafana/mcp-grafana:0.17.0"
 # lightrag reads. Created out-of-band (gated step in N4 runbook).
 openaiSecretName: "lightrag-openai"
 
-# Per-Project memory monitoring (issue #203 / #200 point 1). The operator stamps
-# these labels (MEMORY_MONITOR_LABELS, a JSON object like agentScheduling above)
-# onto the per-Project memory ServiceMonitor, PrometheusRule, and cnpg PodMonitor
-# it provisions, so the cluster kube-prometheus-stack serviceMonitorSelector /
-# ruleSelector match them. The chart bakes no default (cluster-agnostic, rule 14).
-# release=prometheus is the label this cluster's ruleSelector requires: the only
-# rule group Prometheus loads is the stack's own, from file
-# monitoring-prometheus-kube-prometheus-*-rules (kube-prometheus-stack release
-# "prometheus" in ns monitoring), and the memory PrometheusRule was absent until
-# labelled. The memory ServiceMonitor is already scraped (serviceMonitorSelector
-# is broader here), so this is a no-op for it and the knob that activates the
-# memory alerts. This cluster shares one selector label across both selectors
-# (kube-prometheus-stack default); a cluster that splits them needs a second knob.
-memoryMonitoring:
-  additionalLabels:
-    release: prometheus
-
 # In-cluster service endpoints.
 oidcIssuer: "https://auth.szymonrichert.pl/realms/master"
 oidcAudience: "tatara-operator"
@@ -83,6 +66,18 @@ operatorOidcClientId: "tatara-operator"
 anthropicSecretName: "tatara-anthropic"
 cliOidcSecretName: "tatara-cli-oidc"
 scmSecretName: "tatara-scm"
+
+# Claude account-usage poller (claudeSubscription gate). Turns the fleet-wide
+# poller ON: it polls /api/oauth/usage and emits tatara_account_usage_* metrics.
+# GATING only happens where a Project sets spec.tokenBudget.enabled=true (see the
+# project-* value files - infrastructure first, tatara staged off).
+# PRE-REQ before this whole release applies: the tatara-anthropic-usage Secret
+# must exist (sops), holding oauth-access-token/oauth-refresh-token/
+# oauth-expires-at from a DEDICATED interactive `claude login` (a user:profile-
+# scoped token; the shared setup-token lacks that scope and would 403-loop). The
+# operator self-refreshes + persists the rotated bundle back to that Secret.
+usageEnabled: true
+usageSecretName: "tatara-anthropic-usage"
 
 # imagePullSecret: cluster-specific pull secret for operator-spawned workloads
 # (neo4j, lightrag, tatara-memory, cnpg Cluster). Harbor's proxy-dockerhub
@@ -123,16 +118,3 @@ s3SecretName: "tatara-conversations"
 # Without this the ccw_*/tatara_wrapper_* series are dropped as reserved_name and the
 # wrapper metric alerts stay dark.
 pushMetricsAllowedPrefixes: "wrapper_,agent_,memory_,ingest_,ccw_,tatara_wrapper_,analyzer_,scip_,semantic_,llm_,push_"
-
-# Token-budget admission gate (issue #189) in claudeSubscription mode: gate on the
-# wrapper-reported Claude 5h/weekly usage percentages (agents read their own usage %
-# from Claude API responses and report it back). Pause proactive work (brainstorm/
-# implement/review) at 50% and incident work at 80% of the window, resuming on reset.
-# claudeSubscription mode needs NO /api/oauth/usage OAuth token - the shared fleet
-# `claude setup-token` lacks the user:profile scope that endpoint requires (403), so
-# usageEnabled stays false and this wrapper-reported path is used instead. No
-# customWindow inputs (resetSchedule/window/tokenLimit) are needed in this mode.
-tokenBudgetEnabled: true
-tokenBudgetMode: "claudeSubscription"
-tokenBudgetProactivePercent: 50
-tokenBudgetEmergencyPercent: 80
