@@ -128,6 +128,8 @@ project:
         # followups. The terminal sink the brainstorm lifecycle otherwise lacks.
         refine:
           closedLookbackDays: 30
+        documentation:
+          schedule: 0 3 * * *
 
 repositories:
   # tatara docs repo dropped 2026-07-07: it is private and szymonrychu-bot is
