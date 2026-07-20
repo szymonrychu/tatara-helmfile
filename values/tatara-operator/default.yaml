@@ -84,6 +84,18 @@ anthropicSecretName: "tatara-anthropic"
 cliOidcSecretName: "tatara-cli-oidc"
 scmSecretName: "tatara-scm"
 
+# Claude account-usage poller (claudeSubscription gate). Turns the fleet-wide
+# poller ON: it polls /api/oauth/usage and emits tatara_account_usage_* metrics.
+# GATING only happens where a Project sets spec.tokenBudget.enabled=true (see the
+# project-* value files - infrastructure first, tatara staged off).
+# PRE-REQ before this whole release applies: the tatara-anthropic-usage Secret
+# must exist (sops), holding oauth-access-token/oauth-refresh-token/
+# oauth-expires-at from a DEDICATED interactive `claude login` (a user:profile-
+# scoped token; the shared setup-token lacks that scope and would 403-loop). The
+# operator self-refreshes + persists the rotated bundle back to that Secret.
+usageEnabled: true
+usageSecretName: "tatara-anthropic-usage"
+
 # imagePullSecret: cluster-specific pull secret for operator-spawned workloads
 # (neo4j, lightrag, tatara-memory, cnpg Cluster). Harbor's proxy-dockerhub
 # requires authentication; regcred is the standard pull secret in this cluster.
