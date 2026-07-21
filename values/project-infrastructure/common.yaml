@@ -41,9 +41,10 @@ project:
       maxTaskTokens: 3000000
       maxTurnsPerTask: 100
       permissionMode: bypassPermissions
-      # Pin the agent-skills install to a SHA (kills the `main` drift; component 5
-      # / component 4b). Bump deliberately alongside a skills change.
-      skillsRef: 039408c61c2c446ca103b947ac4a1a1acb17955a
+      # Pin the agent-skills install (kills the `main` drift; component 5
+      # / component 4b). CD-managed: tatara-agent-skills release.yml rewrites
+      # this to each freshly cut tag. Do not hand-edit.
+      skillsRef: v1.5.2
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
