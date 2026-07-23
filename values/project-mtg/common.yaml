@@ -1,0 +1,60 @@
+# mtg Project + Repository CRs, codified via the tatara-project chart.
+# First project wired to an in-cluster generic MCP server via
+# spec.agent.mcpServers (reaches the spellslinger MCP HTTP service; no
+# spellslinger code lives in tatara itself).
+namespace: tatara
+
+project:
+  name: mtg
+  spec:
+    scmSecretRef: tatara-scm
+    triggerLabel: mtg
+    maxConcurrentAgents: 2
+    maxOpenTasks: 3
+    agent:
+      effort: high
+      model: claude-opus-4-8
+      modelByKind:
+        clarify: claude-sonnet-5
+        review: claude-sonnet-5
+      effortByKind:
+        clarify: low
+        review: medium
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.1.0
+      maxTaskTokens: 2000000
+      maxTurnsPerTask: 60
+      permissionMode: bypassPermissions
+      skillsRef: v1.5.2
+      turnTimeoutSeconds: 2700
+      # The generic per-Project MCP injection: reaches the in-cluster
+      # spellslinger MCP HTTP service. No spellslinger code in tatara.
+      mcpServers:
+        - name: spellslinger
+          url: http://spellslinger-mcp-http.spellslinger-development.svc.cluster.local:8080/mcp
+          type: http
+    scm:
+      provider: github
+      owner: szymonrychu
+      botLogin: szymonrychu-bot
+      botEmail: 143486966+szymonrychu-bot@users.noreply.github.com
+      maintainerLogins:
+        - szymonrychu
+      reporterLogins:
+        - szymonrychu
+      mergePolicy: afterApproval
+      prReactionScope: labeledOrMentioned
+      cron:
+        issueScan:
+          maxPerRepo: 1
+          schedule: 0 */4 * * *
+
+repositories:
+  - name: mtg-decks
+    spec:
+      url: "https://github.com/szymonrychu/mtg-decks"
+      defaultBranch: main
+      ingestEnabled: true
+      # tatara-project chart requires a 5-field reingestSchedule cron on every
+      # Repository entry; not called out in the brief. Same cadence as the
+      # project-tatara repos.
+      reingestSchedule: "0 6 * * *"
