@@ -7,4 +7,4 @@ image:
   # TATARA_CD_TOKEN is expired (cd-release tag job 401). ci-shared.yml still
   # publishes the :<short-sha> image on push to main. Re-pin to semver once the
   # token is rotated and releases resume. Operator main 26098cd (#277, role-harness plugins).
-  tag: "v1.18.0"
+  tag: "v1.19.0"
