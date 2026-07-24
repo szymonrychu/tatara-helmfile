@@ -28,7 +28,7 @@ project:
       # documentation) inherit the high fallback. xhigh->high everywhere it
       # stays Opus.
       effort: high
-      model: claude-opus-4-8
+      model: claude-opus-5
       modelByKind:
         clarify: claude-sonnet-5
         review: claude-sonnet-5

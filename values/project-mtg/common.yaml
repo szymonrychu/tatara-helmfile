@@ -16,13 +16,15 @@ project:
     agentPodTTLSeconds: 14400
     agent:
       effort: high
-      model: claude-opus-4-8
-      # clarify + review pinned to opus explicitly (not left to the code
-      # default) so a future kindDefaultModel change can't silently downgrade
-      # them; both inherit project-default effort: high.
+      model: claude-opus-5
+      # clarify + review pinned to claude-opus-5 explicitly (not left to the
+      # operator's kindDefaultModel) so a future default change can't silently
+      # downgrade them; both inherit project-default effort: high. Unlike
+      # project-tatara/project-infrastructure, mtg does NOT tier these down to
+      # sonnet - deck research is the reasoning-heaviest work on the platform.
       modelByKind:
-        clarify: claude-opus-4-8
-        review: claude-opus-4-8
+        clarify: claude-opus-5
+        review: claude-opus-5
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.2.0
       maxTaskTokens: 2000000
       # 400: deck skills run multi-agent research/sim pipelines up to ~3h; 150
@@ -57,6 +59,47 @@ project:
           python + matplotlib and the graphviz dot shim that preflight requires).
           PDF export is optional: generate one only if the human explicitly
           asked; skipping it otherwise is normal, not a degradation.
+        brainstorm: |
+          Scope this cycle to EXACTLY ONE deck: the single most recently updated
+          deck directory under `decks/` in the mtg-decks checkout at
+          /workspace/szymonrychu/mtg-decks.
+
+          Find it first. The brainstorm pod gets a depth-1 shallow clone, so
+          `git log` sees only one commit until you deepen the history:
+            cd /workspace/szymonrychu/mtg-decks
+            git fetch --unshallow || git fetch --deepen=200
+            for d in decks/*/; do
+              printf '%s %s\n' "$(git log -1 --format=%ct -- "$d")" "$d"
+            done | sort -rn | head -1
+          The directory on that line is your target. Sort on `%ct` (Unix epoch
+          seconds), not `%cI`: the committer's local UTC offset makes a
+          13:00+02:00 commit lexicographically outsort a genuinely newer
+          12:00Z commit, and mtg-decks mixes +00:00 container-bot commits with
+          +02:00 human ones, so that offset can pick the wrong deck. Once you
+          have the winning directory, get its date for the proposal with
+          `git log -1 --format=%cI -- <dir>` on that directory alone - safe
+          now because it is no longer the thing being sorted. `git fetch
+          --unshallow` exits non-zero if the clone is already complete; the
+          `--deepen=200` fallback covers that and is not an error. If the
+          history cannot be deepened and the loop yields no usable
+          timestamps, do NOT guess a deck: call `submit_outcome` with
+          `action="skip"` and a `reason` naming the git-history failure, and
+          stop.
+
+          Propose ONE issue, for that deck only, framed as metagame
+          optimization. The issue body must direct the implementing agent to run
+          the repo's `optimize-deck` skill (which dispatches to
+          `research-protocol`) against that deck's `decks/<deck>/decklist.txt`,
+          optimizing the list against the CURRENT metagame. State the deck
+          directory you picked and the commit date that made it the newest.
+
+          Do NOT propose work on any other deck. Do NOT run any of this
+          repo's workflow skills yourself and skip the `*` block's `mise
+          install && mise run setup` toolchain bootstrap too - brainstorm
+          proposes, implement executes, and this cycle produces a proposal,
+          not research output. If that deck was optimized recently enough
+          that another pass would add nothing, call `submit_outcome` with
+          `action="skip"` and a `reason`, and stop.
         review: |
           As reviewer, be critical but fair. A multi-level review is expected:
           design, decklist choices, simulation evidence, and page structure.
@@ -80,6 +123,24 @@ project:
       mergePolicy: afterApproval
       prReactionScope: labeledOrMentioned
       cron:
+        # First brainstorm for this project (previously absent -> Enabled=false ->
+        # never ran). Cron is evaluated in UTC: robfig's SpecSchedule.Next does
+        # `if loc == time.Local { loc = t.Location() }`, so a bare
+        # cron.ParseStandard schedule (no explicit TZ) is evaluated in the base
+        # timestamp's location, and the base is a metav1.Time, which is always
+        # UTC regardless of the image's tzdata. So `0 12 * * *` is noon UTC =
+        # 14:00 Europe/Warsaw (CEST).
+        brainstorm:
+          enabled: true
+          # Only one repo in this project, and the mandate is one deck at a time.
+          maxOpenProposals: 3
+          schedule: 0 12 * * *
+          # Auto-close bot proposals with no human engagement after 14 days.
+          staleProposalDays: 14
+          sources:
+            - docs
+            - memory
+            - internet
         issueScan:
           maxPerRepo: 1
           schedule: 0 */4 * * *
