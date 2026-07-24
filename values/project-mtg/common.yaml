@@ -11,6 +11,9 @@ project:
     triggerLabel: mtg
     maxConcurrentAgents: 2
     maxOpenTasks: 3
+    # 4h pod life: the repo's longest Workflow research pipeline runs ~3h in a
+    # single turn; the 3600 default TTL-stopped it mid-run.
+    agentPodTTLSeconds: 14400
     agent:
       effort: high
       model: claude-opus-4-8
@@ -22,11 +25,15 @@ project:
         review: claude-opus-4-8
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.2.0
       maxTaskTokens: 2000000
-      # 150: deck skills run multi-agent research/sim pipelines; 60 starved them.
-      maxTurnsPerTask: 150
+      # 400: deck skills run multi-agent research/sim pipelines up to ~3h; 150
+      # starved multi-deck tasks. No unlimited exists (0 falls back to the 300
+      # default), so this is the effective "do not starve" ceiling.
+      maxTurnsPerTask: 400
       permissionMode: bypassPermissions
       skillsRef: v1.5.2
-      turnTimeoutSeconds: 2700
+      # Inactivity window, not wall-clock: a streaming 3h Workflow run is safe,
+      # but give long quiet Workflow phases a full hour before calling a stall.
+      turnTimeoutSeconds: 3600
       # mtg-decks ships its own workflow skills (no profiles: frontmatter ->
       # wildcard -> installed for every agent kind). Cloned with the project's
       # scmSecretRef token via the wrapper's global GIT_TOKEN credential helper.
@@ -45,6 +52,11 @@ project:
           tune a deck with optimize-deck, sideboard-guide, or prep-tournament.
           Review and risk-check with ban-watch and the research-protocol gates.
           These skills live in the mtg-decks checkout; run them from the repo root.
+          Before any research pipeline, bootstrap the repo toolchain once:
+          `mise install && mise run setup` at the mtg-decks repo root (provides
+          python + matplotlib and the graphviz dot shim that preflight requires).
+          PDF export is optional: generate one only if the human explicitly
+          asked; skipping it otherwise is normal, not a degradation.
         review: |
           As reviewer, be critical but fair. A multi-level review is expected:
           design, decklist choices, simulation evidence, and page structure.
