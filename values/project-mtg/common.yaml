@@ -59,6 +59,36 @@ project:
           python + matplotlib and the graphviz dot shim that preflight requires).
           PDF export is optional: generate one only if the human explicitly
           asked; skipping it otherwise is normal, not a degradation.
+        brainstorm: |
+          Scope this cycle to EXACTLY ONE deck: the single most recently updated
+          deck directory under `decks/` in the mtg-decks checkout at
+          /workspace/szymonrychu/mtg-decks.
+
+          Find it first. The brainstorm pod gets a depth-1 shallow clone, so
+          `git log` sees only one commit until you deepen the history:
+            cd /workspace/szymonrychu/mtg-decks
+            git fetch --unshallow || git fetch --deepen=200
+            for d in decks/*/; do
+              printf '%s %s\n' "$(git log -1 --format=%cI -- "$d")" "$d"
+            done | sort -r | head -1
+          The directory on that line is your target. `git fetch --unshallow`
+          exits non-zero if the clone is already complete; the `--deepen=200`
+          fallback covers that and is not an error. If the loop prints empty
+          dates because both fetches failed, fall back to the newest
+          `decks/*/decklist.txt` by filesystem mtime and say in the proposal
+          that you used the mtime fallback.
+
+          Propose ONE issue, for that deck only, framed as metagame
+          optimization. The issue body must direct the implementing agent to run
+          the repo's `optimize-deck` skill (which dispatches to
+          `research-protocol`) against that deck's `decks/<deck>/decklist.txt`,
+          optimizing the list against the CURRENT metagame. State the deck
+          directory you picked and the commit date that made it the newest.
+
+          Do NOT propose work on any other deck. Do NOT run `optimize-deck`,
+          `research-protocol`, or any simulation yourself - brainstorm proposes,
+          implement executes. If that deck was optimized recently enough that
+          another pass would add nothing, call `skip_research(reason)` and stop.
         review: |
           As reviewer, be critical but fair. A multi-level review is expected:
           design, decklist choices, simulation evidence, and page structure.
