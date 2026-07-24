@@ -69,14 +69,22 @@ project:
             cd /workspace/szymonrychu/mtg-decks
             git fetch --unshallow || git fetch --deepen=200
             for d in decks/*/; do
-              printf '%s %s\n' "$(git log -1 --format=%cI -- "$d")" "$d"
-            done | sort -r | head -1
-          The directory on that line is your target. `git fetch --unshallow`
-          exits non-zero if the clone is already complete; the `--deepen=200`
-          fallback covers that and is not an error. If the loop prints empty
-          dates because both fetches failed, fall back to the newest
-          `decks/*/decklist.txt` by filesystem mtime and say in the proposal
-          that you used the mtime fallback.
+              printf '%s %s\n' "$(git log -1 --format=%ct -- "$d")" "$d"
+            done | sort -rn | head -1
+          The directory on that line is your target. Sort on `%ct` (Unix epoch
+          seconds), not `%cI`: the committer's local UTC offset makes a
+          13:00+02:00 commit lexicographically outsort a genuinely newer
+          12:00Z commit, and mtg-decks mixes +00:00 container-bot commits with
+          +02:00 human ones, so that offset can pick the wrong deck. Once you
+          have the winning directory, get its date for the proposal with
+          `git log -1 --format=%cI -- <dir>` on that directory alone - safe
+          now because it is no longer the thing being sorted. `git fetch
+          --unshallow` exits non-zero if the clone is already complete; the
+          `--deepen=200` fallback covers that and is not an error. If the
+          history cannot be deepened and the loop yields no usable
+          timestamps, do NOT guess a deck: call `submit_outcome` with
+          `action="skip"` and a `reason` naming the git-history failure, and
+          stop.
 
           Propose ONE issue, for that deck only, framed as metagame
           optimization. The issue body must direct the implementing agent to run
@@ -85,10 +93,13 @@ project:
           optimizing the list against the CURRENT metagame. State the deck
           directory you picked and the commit date that made it the newest.
 
-          Do NOT propose work on any other deck. Do NOT run `optimize-deck`,
-          `research-protocol`, or any simulation yourself - brainstorm proposes,
-          implement executes. If that deck was optimized recently enough that
-          another pass would add nothing, call `skip_research(reason)` and stop.
+          Do NOT propose work on any other deck. Do NOT run any of this
+          repo's workflow skills yourself and skip the `*` block's `mise
+          install && mise run setup` toolchain bootstrap too - brainstorm
+          proposes, implement executes, and this cycle produces a proposal,
+          not research output. If that deck was optimized recently enough
+          that another pass would add nothing, call `submit_outcome` with
+          `action="skip"` and a `reason`, and stop.
         review: |
           As reviewer, be critical but fair. A multi-level review is expected:
           design, decklist choices, simulation evidence, and page structure.
@@ -113,10 +124,12 @@ project:
       prReactionScope: labeledOrMentioned
       cron:
         # First brainstorm for this project (previously absent -> Enabled=false ->
-        # never ran). Cron is evaluated in UTC: the operator parses with robfig
-        # cron.ParseStandard using time.Local, the distroless operator image ships
-        # no tzdata so time.Local IS UTC, and the metav1.Time it compares against
-        # is UTC. So `0 12 * * *` is noon UTC = 14:00 Europe/Warsaw (CEST).
+        # never ran). Cron is evaluated in UTC: robfig's SpecSchedule.Next does
+        # `if loc == time.Local { loc = t.Location() }`, so a bare
+        # cron.ParseStandard schedule (no explicit TZ) is evaluated in the base
+        # timestamp's location, and the base is a metav1.Time, which is always
+        # UTC regardless of the image's tzdata. So `0 12 * * *` is noon UTC =
+        # 14:00 Europe/Warsaw (CEST).
         brainstorm:
           enabled: true
           # Only one repo in this project, and the mandate is one deck at a time.
