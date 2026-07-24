@@ -16,13 +16,15 @@ project:
     agentPodTTLSeconds: 14400
     agent:
       effort: high
-      model: claude-opus-4-8
-      # clarify + review pinned to opus explicitly (not left to the code
-      # default) so a future kindDefaultModel change can't silently downgrade
-      # them; both inherit project-default effort: high.
+      model: claude-opus-5
+      # clarify + review pinned to claude-opus-5 explicitly (not left to the
+      # operator's kindDefaultModel) so a future default change can't silently
+      # downgrade them; both inherit project-default effort: high. Unlike
+      # project-tatara/project-infrastructure, mtg does NOT tier these down to
+      # sonnet - deck research is the reasoning-heaviest work on the platform.
       modelByKind:
-        clarify: claude-opus-4-8
-        review: claude-opus-4-8
+        clarify: claude-opus-5
+        review: claude-opus-5
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.2.0
       maxTaskTokens: 2000000
       # 400: deck skills run multi-agent research/sim pipelines up to ~3h; 150
