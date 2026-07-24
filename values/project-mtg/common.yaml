@@ -82,6 +82,22 @@ project:
       mergePolicy: afterApproval
       prReactionScope: labeledOrMentioned
       cron:
+        # First brainstorm for this project (previously absent -> Enabled=false ->
+        # never ran). Cron is evaluated in UTC: the operator parses with robfig
+        # cron.ParseStandard using time.Local, the distroless operator image ships
+        # no tzdata so time.Local IS UTC, and the metav1.Time it compares against
+        # is UTC. So `0 12 * * *` is noon UTC = 14:00 Europe/Warsaw (CEST).
+        brainstorm:
+          enabled: true
+          # Only one repo in this project, and the mandate is one deck at a time.
+          maxOpenProposals: 3
+          schedule: 0 12 * * *
+          # Auto-close bot proposals with no human engagement after 14 days.
+          staleProposalDays: 14
+          sources:
+            - docs
+            - memory
+            - internet
         issueScan:
           maxPerRepo: 1
           schedule: 0 */4 * * *
