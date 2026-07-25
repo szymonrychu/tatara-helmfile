@@ -21,6 +21,23 @@ project:
     # Creation budget (non-terminal Task cap). Set above maxConcurrentAgents so the
     # hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
+    # Claude-subscription usage gate (STAGE 2: tatara held OFF until infrastructure
+    # proves the poller + ladder). Flip enabled:true in a follow-up MR once the
+    # tatara_account_usage_* metrics populate and infrastructure gates cleanly.
+    # The ladder is identical to infrastructure; refine omitted (scan barrier).
+    tokenBudget:
+      enabled: false
+      mode: claudeSubscription
+      pollIntervalSeconds: 180
+      spawnCeilingByKind:
+        brainstorm: 40
+        selfImprove: 55
+        healthCheck: 60
+        triageIssue: 70
+        review: 75
+        issueLifecycle: 80
+        implement: 85
+        incident: 98
     agent:
       # Per-kind tiering (token-conservation component 1): project-wide fallback
       # is Opus/high; only clarify+review drop to Sonnet with low/medium
