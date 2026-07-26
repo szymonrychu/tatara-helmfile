@@ -85,8 +85,11 @@ project:
       cron:
         brainstorm:
           enabled: true
-          # Project-wide cap summing open agent proposals across all 5 repos.
-          maxOpenProposals: 10
+          # Backlog TARGET, not a cap: the operator refills toward this level
+          # across all 5 repos and launches the next session the moment a
+          # maintainer approves or discards one. It never closes a proposal to
+          # reconcile downward. Was maxOpenProposals: 10 (a ceiling).
+          targetOpenProposals: 3
           schedule: 0 6 * * *
           # Activate the stale-proposal reaper (operator #199): auto-close bot
           # proposals with no human engagement after 14 days.
