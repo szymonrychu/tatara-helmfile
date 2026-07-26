@@ -14,6 +14,11 @@ project:
     # 4h pod life: the repo's longest Workflow research pipeline runs ~3h in a
     # single turn; the 3600 default TTL-stopped it mid-run.
     agentPodTTLSeconds: 14400
+    # operator#429: default AlertCapacity() is 1, so a single investigating
+    # incident head-of-line-blocks every other incident for its whole
+    # investigation window. Reserve 3 concurrent slots for the alert class.
+    queue:
+      alertCapacity: 3
     agent:
       effort: high
       model: claude-opus-5

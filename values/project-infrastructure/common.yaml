@@ -21,6 +21,11 @@ project:
     maxConcurrentAgents: 5
     # Above maxConcurrentAgents so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
+    # operator#429: default AlertCapacity() is 1, so a single investigating
+    # incident head-of-line-blocks every other incident for its whole
+    # investigation window. Reserve 3 concurrent slots for the alert class.
+    queue:
+      alertCapacity: 3
     agent:
       # Per-kind tiering (token-conservation component 1): project-wide fallback
       # is Opus/high; only clarify+review drop to Sonnet with low/medium
