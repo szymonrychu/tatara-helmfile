@@ -1,0 +1,55 @@
+# Dedicated CNPG backup bucket for szymonrychu/tatara-operator#432.
+#
+# Destination for WAL archives and base backups from the operator-built CNPG
+# clusters (mem-tatara-pg, mem-infrastructure-pg, mem-mtg-pg). Applied by the
+# operator presync hook (.hook.sh: *.tatara-operator.pre.yaml -> `kubectl
+# apply -n tatara`), same mechanism as raw/conversation-bucket.tatara-operator.pre.yaml.
+# A rook-ceph ObjectBucketClaim provisions the bucket and rook-ceph's OBC
+# controller auto-creates, in the same (tatara) namespace:
+#   - Secret    tatara-pg-backups  with keys AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+#   - ConfigMap tatara-pg-backups  with BUCKET_HOST / BUCKET_NAME / BUCKET_PORT / BUCKET_REGION / BUCKET_SUBREGION
+#
+# MUST STAY EMPTY: bucketName below is a brand-new name, never previously
+# used. CNPG's `.check-empty-wal-archive` guard does NOT protect these
+# clusters (the flag file is long gone from mem-tatara-pg / mem-infrastructure-pg
+# / mem-mtg-pg), so pointing this OBC at any pre-existing, non-empty bucket
+# would silently archive into it with no collision protection. Never repoint
+# this bucketName at an existing bucket.
+#
+# OWNERSHIP: this OBC is deliberately created here by helmfile, NOT by the
+# tatara-operator (e.g. not via a Project/memoryBackup-driven CR). The
+# rook-ceph-bucket StorageClass has reclaimPolicy: Delete. An operator-created
+# OBC would inherit the owning Project's ownerRef and be garbage-collected
+# when that Project is deleted/recreated, which would make rook delete this
+# bucket - and every WAL/base backup in it - along with it. Keeping this a
+# helmfile-owned raw manifest means the bucket's lifecycle is independent of
+# any Project CR.
+#
+# ORDERING REQUIREMENT (deploy-time, not helmfile-time): this OBC must reach
+# Bound in-cluster BEFORE the operator's memoryBackup.enabled flag (added
+# separately, not in this PR) is flipped to true for any project. If the
+# archive destination is broken or unreachable when WAL archiving is enabled,
+# PostgreSQL retains WAL locally until the data PVC fills. Verify `kubectl -n
+# tatara get objectbucketclaim tatara-pg-backups` shows Bound, and that the
+# generated Secret/ConfigMap exist, before enabling memoryBackup anywhere.
+#
+# DEPLOY-STEP VERIFY (tatara-deploy-harness, not this PR):
+#   1. storageClassName below must be the cluster's rook-ceph object-bucket
+#      StorageClass (kubectl get sc | grep -i bucket; e.g. rook-ceph-bucket).
+#   2. After the OBC binds, read the real endpoint from the generated ConfigMap
+#      (kubectl -n tatara get cm tatara-pg-backups \
+#         -o jsonpath='{.data.BUCKET_HOST}:{.data.BUCKET_PORT}') and pass that
+#      to whatever consumes it (the operator's memoryBackup wiring, added
+#      separately).
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: tatara-pg-backups
+  namespace: tatara
+spec:
+  # Explicit (not generateBucketName) so the bucket name is stable across
+  # re-syncs and callers can rely on it. Must remain unique/unused - see
+  # "MUST STAY EMPTY" above.
+  bucketName: tatara-pg-backups
+  # VERIFY at deploy: the cluster's rook-ceph object-bucket StorageClass.
+  storageClassName: rook-ceph-bucket
