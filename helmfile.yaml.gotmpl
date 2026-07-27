@@ -105,11 +105,15 @@ releases:
     application: tatara-project
   <<: *default
 
+# Chart version catch-up: project-mtg now tracks the same tatara-project chart
+# version (1.31.0) as project-tatara and project-infrastructure. Chart is
+# unchanged between 1.20.0 and 1.31.0 (comment-only commit; rendered output
+# byte-identical).
 - name: project-mtg
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
   namespace: tatara
   createNamespace: true
-  version: 1.20.0
+  version: 1.31.0
   needs:
   - tatara/tatara-operator
   labels:

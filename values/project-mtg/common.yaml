@@ -137,8 +137,11 @@ project:
         # 14:00 Europe/Warsaw (CEST).
         brainstorm:
           enabled: true
-          # Only one repo in this project, and the mandate is one deck at a time.
-          maxOpenProposals: 3
+          # Backlog TARGET, not a cap. Only one repo in this project and the
+          # mandate is one deck at a time, so keep it low. Was
+          # maxOpenProposals: 3 (a ceiling), which happened to be the same
+          # number but meant the opposite thing.
+          targetOpenProposals: 2
           schedule: 0 12 * * *
           # Auto-close bot proposals with no human engagement after 14 days.
           staleProposalDays: 14
