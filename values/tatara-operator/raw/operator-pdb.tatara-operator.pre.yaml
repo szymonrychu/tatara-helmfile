@@ -1,0 +1,47 @@
+# PodDisruptionBudget for the tatara-operator manager Deployment
+# (tatara-helmfile#239 fix item 2, also the remediation path #245 depends on).
+#
+# WHY HERE AND NOT IN THE CHART: charts/tatara-operator (tatara-operator repo)
+# renders no PDB, and its deployment.yaml carries no affinity /
+# topologySpreadConstraints / tolerations block at all - there is no chart value
+# to set. Rule 14 puts cluster-specific availability policy in this repo, and
+# this repo's presync hook (.hook.sh: *.tatara-operator.pre.yaml -> `kubectl
+# apply -n tatara`) is the existing mechanism for objects helm does not own.
+# Verified against the live cluster 2026-07-29: `kubectl -n tatara get pdb`
+# listed only the CloudNativePG-generated budgets (mem-*-pg, mem-*-pg-primary),
+# so the operator's own 3 replicas had no eviction protection whatsoever.
+#
+# WHY maxUnavailable: 1 AND NOT minAvailable: 2: identical protection at the
+# current replicaCount: 3 (values/tatara-operator/default.yaml), but it degrades
+# safely if the count is ever lowered - `minAvailable: 2` on a 1- or 2-replica
+# Deployment blocks every voluntary eviction forever (including the drain of the
+# node you are trying to evacuate), while maxUnavailable keeps exactly one
+# disruption available at any replica count.
+#
+# WHAT THIS DOES AND DOES NOT BUY: it makes the documented remediation for both
+# node-fault incidents (#239 pod-overlay partition, #245 CSI mount wedge -
+# `kubectl cordon/drain worker-jtw3f33`) serialize instead of letting a drain,
+# or two overlapping node maintenances, take operator HA to 0/3. It does NOT
+# detect or evict a broken node: a node that stays `Ready` while its pod network
+# or CSI plane is wedged triggers no eviction at all, so nothing here fires.
+# That detection gap belongs to tatara-observability (per-node alert rules) and
+# to the infra helmfile (node-problem-detector + a remediation controller); both
+# are recorded in ROADMAP.md under cross-repo follow-ups.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tatara-operator
+  namespace: tatara
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      # Verified 2026-07-29 against the live Deployment:
+      #   kubectl -n tatara get deploy tatara-operator \
+      #     -o jsonpath='{.spec.selector.matchLabels}'
+      #   -> {"app.kubernetes.io/instance":"tatara-operator",
+      #       "app.kubernetes.io/name":"tatara-operator"}
+      # These are the chart's selectorLabels; keep them in sync with
+      # charts/tatara-operator/templates/_helpers.tpl if the chart ever changes.
+      app.kubernetes.io/name: tatara-operator
+      app.kubernetes.io/instance: tatara-operator
