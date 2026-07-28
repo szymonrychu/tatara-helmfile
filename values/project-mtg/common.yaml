@@ -124,6 +124,18 @@ project:
         - name: spellslinger
           url: http://spellslinger-mcp-http.spellslinger-development.svc.cluster.local:8080/mcp
           type: http
+    memory:
+      # Volume sizing (pgStorage / pgWalStorage / neo4jStorage) is shared across
+      # every project in values/memory-stack.yaml - do not re-declare it here.
+      # This block previously did not exist at all, so mem-mtg-pg ran on
+      # whatever the operator's compiled-in fallbacks happened to be (#237: the
+      # gap is a project having no declared sizing, not just a wrong number).
+      # One instance is a deliberate choice: mtg is a single-repo,
+      # single-writer project, so it does not carry the HA cost of a 3-member
+      # cluster. There is no standby, hence no replication slot and none of the
+      # standby-resync WAL bursts that sized the shared volumes - it inherits
+      # them anyway so no stack is left on an unchosen default.
+      pgInstances: 1
     scm:
       provider: github
       owner: szymonrychu

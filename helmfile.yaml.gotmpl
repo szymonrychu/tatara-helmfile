@@ -39,6 +39,22 @@ templates:
     secrets:
     - values/{{`{{ .Release.Name }}`}}/{{`{{ .Environment.Name }}`}}.secrets.yaml
 
+  # Every project-* release (the tatara-project chart). Identical to `default`
+  # except that it also loads values/memory-stack.yaml, the ONE place the
+  # per-project CNPG postgres + neo4j sizing is declared. It sits before the
+  # per-release files so a project can still override a single field with a
+  # stated reason, and it is scoped to this template so the operator/chat
+  # releases never see a `project` key. See values/memory-stack.yaml for the
+  # incident history (#237, #263).
+  project: &project
+    <<: *default
+    values:
+    - values/common.yaml
+    - values/{{`{{ .Environment.Name }}`}}.yaml
+    - values/memory-stack.yaml
+    - values/{{`{{ .Release.Name }}`}}/common.yaml
+    - values/{{`{{ .Release.Name }}`}}/{{`{{ .Environment.Name }}`}}.yaml
+
 releases:
 
 - name: tatara-chat
@@ -91,7 +107,7 @@ releases:
   labels:
     purpose: tatara
     application: tatara-project
-  <<: *default
+  <<: *project
 
 - name: project-infrastructure
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
@@ -103,7 +119,7 @@ releases:
   labels:
     purpose: tatara
     application: tatara-project
-  <<: *default
+  <<: *project
 
 # Chart version catch-up: project-mtg now tracks the same tatara-project chart
 # version (1.31.0) as project-tatara and project-infrastructure. Chart is
@@ -119,4 +135,4 @@ releases:
   labels:
     purpose: tatara
     application: tatara-project
-  <<: *default
+  <<: *project

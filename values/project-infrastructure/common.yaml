@@ -54,9 +54,12 @@ project:
       url: http://prometheus-grafana.monitoring.svc.cluster.local
       secretRef: infrastructure-grafana
     memory:
-      neo4jStorage: 10Gi
+      # Volume sizing (pgStorage / pgWalStorage / neo4jStorage) is shared across
+      # every project in values/memory-stack.yaml - do not re-declare it here.
+      # This stack used to carry pgStorage: 10Gi and NO pgWalStorage at all, so
+      # it silently ran on a 2Gi WAL volume and repeated the incidents already
+      # fixed on project-tatara (#237, #263). Instance count stays per-project.
       pgInstances: 3
-      pgStorage: 10Gi
     scm:
       provider: gitlab
       owner: szymonrychu
