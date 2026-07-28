@@ -41,8 +41,8 @@ project:
       maxTurnsPerTask: 100
       permissionMode: bypassPermissions
       # Pin the agent-skills install (kills the `main` drift; component 5
-      # / component 4b). CD-managed: tatara-agent-skills release.yml rewrites
-      # this to each freshly cut tag. Do not hand-edit.
+      # / component 4b). HAND-MANAGED: see the note in
+      # values/project-tatara/common.yaml. Move all three projects together.
       skillsRef: v1.5.2
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project

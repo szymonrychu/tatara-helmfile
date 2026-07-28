@@ -45,8 +45,11 @@ project:
       maxTurnsPerTask: 100
       permissionMode: bypassPermissions
       # Pin the agent-skills install (kills the `main` drift; component 5
-      # / component 4b). CD-managed: tatara-agent-skills release.yml rewrites
-      # this to each freshly cut tag. Do not hand-edit.
+      # / component 4b). HAND-MANAGED: tatara-agent-skills release.yml bumps
+      # the wrapper Dockerfile's TATARA_SKILLS_REF, NOT this value, so this pin
+      # overrides the image's baked ref and does not move on its own. Move all
+      # three projects together - .github/scripts/check_pin_coverage.py fails
+      # the build if they diverge.
       skillsRef: v1.5.2
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
