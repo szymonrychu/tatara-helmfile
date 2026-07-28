@@ -1,0 +1,58 @@
+# PodDisruptionBudget for the tatara-operator manager Deployment (#256).
+#
+# Applied by the operator presync hook (.hook.sh: *.tatara-operator.pre.yaml ->
+# `kubectl apply -n tatara`), same mechanism as the two ObjectBucketClaims in
+# this directory. The tatara-operator chart renders no PodDisruptionBudget and
+# exposes no knob for one, and a PDB is a standalone object rather than a field
+# on a chart-rendered resource, so a raw manifest is the correct home for it
+# (rule 14: cluster-specific resilience config lives in this repo, never baked
+# into the component chart).
+#
+# WHY: values/tatara-operator/default.yaml sets replicaCount: 3 for
+# leader-election HA, and nothing today bounds how many of those three may be
+# evicted at once. A `kubectl drain` sweep across nodes (the graceful form of
+# the 2026-07-24 rolling reboot) can take all three managers before any
+# replacement is Ready, dropping the platform's control loop to zero. With this
+# budget the eviction API serialises the drain: at most one manager is
+# voluntarily disrupted at a time, so the leader always has a live standby.
+#
+# maxUnavailable rather than minAvailable: it is expressed relative to whatever
+# replicaCount is, so changing replicaCount cannot silently turn the budget into
+# either a no-op (minAvailable below the replica count) or a permanent
+# drain-blocker (minAvailable at or above it).
+#
+# unhealthyPodEvictionPolicy: AlwaysAllow is deliberate. Under the default
+# (IfHealthyBudget) a NotReady manager pod cannot be evicted once the budget is
+# exhausted, so a node carrying a crash-looping operator wedges its drain
+# indefinitely - the classic way a PDB turns a small fault into an unmovable
+# one. AlwaysAllow lets an already-broken pod be evicted while still protecting
+# the healthy ones. Requires k8s >= 1.26 (GA 1.31); this cluster is 1.33.
+#
+# SCOPE NOTE (#256): this budget does NOT address the observability control
+# plane the issue is about. Grafana, its grafana-database-cluster CNPG cluster,
+# and Prometheus are all in the `monitoring` namespace and are deployed by the
+# infra helmfile (infra/helmfile/helmfiles/coding), not by this repo - see
+# CLAUDE.md "What this repo is NOT" and ROADMAP.md's cross-repo follow-ups.
+# Mutating those objects from here would fight the owning helm release's
+# server-side-apply field manager and be reverted on its next apply.
+#
+# It also does NOT defend against the 2026-07-24 failure mode itself. Those
+# nodes went NotReady and rebooted without a drain, so the pods were removed by
+# node-controller TAINT EVICTION, which bypasses PodDisruptionBudgets entirely
+# (issue #256 Q11). A PDB is the control for the *graceful* case; making the
+# reboots graceful is the control for the other, and lives outside this repo.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tatara-operator
+  namespace: tatara
+spec:
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      # tatara-operator.selectorLabels from the chart's _helpers.tpl. Release
+      # name and chart name are both "tatara-operator", so fullname collapses to
+      # the same string. Keep in sync if the release is ever renamed.
+      app.kubernetes.io/name: tatara-operator
+      app.kubernetes.io/instance: tatara-operator
