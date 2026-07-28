@@ -65,46 +65,58 @@ project:
           PDF export is optional: generate one only if the human explicitly
           asked; skipping it otherwise is normal, not a degradation.
         brainstorm: |
-          Scope this cycle to EXACTLY ONE deck: the single most recently updated
-          deck directory under `decks/` in the mtg-decks checkout at
-          /workspace/szymonrychu/mtg-decks.
+          Pick this cycle's proposal from the priority-ordered menu below.
+          Work the categories in order and stop at the first one that yields
+          real work. The repo is checked out at
+          /workspace/szymonrychu/mtg-decks; read before you propose.
 
-          Find it first. The brainstorm pod gets a depth-1 shallow clone, so
-          `git log` sees only one commit until you deepen the history:
-            cd /workspace/szymonrychu/mtg-decks
-            git fetch --unshallow || git fetch --deepen=200
-            for d in decks/*/; do
-              printf '%s %s\n' "$(git log -1 --format=%ct -- "$d")" "$d"
-            done | sort -rn | head -1
-          The directory on that line is your target. Sort on `%ct` (Unix epoch
-          seconds), not `%cI`: the committer's local UTC offset makes a
-          13:00+02:00 commit lexicographically outsort a genuinely newer
-          12:00Z commit, and mtg-decks mixes +00:00 container-bot commits with
-          +02:00 human ones, so that offset can pick the wrong deck. Once you
-          have the winning directory, get its date for the proposal with
-          `git log -1 --format=%cI -- <dir>` on that directory alone - safe
-          now because it is no longer the thing being sorted. `git fetch
-          --unshallow` exits non-zero if the clone is already complete; the
-          `--deepen=200` fallback covers that and is not an error. If the
-          history cannot be deepened and the loop yields no usable
-          timestamps, do NOT guess a deck: call `submit_outcome` with
-          `action="skip"` and a `reason` naming the git-history failure, and
-          stop.
+          1. METHODOLOGY GAPS the repo has already recorded against itself.
+             Highest priority because the repo's own notes name them. Known
+             open ones: `net_delta` is documented as a synergy-fit heuristic
+             rather than a validated win-rate gain, and has twice been used
+             to justify declining a swap; `statistics_matchups` returned no
+             data across three research passes; `sideboard_hint` is
+             unimplemented. Propose validating one of them, replacing it, or
+             removing it and saying so in the notes that cite it.
+          2. VALIDATION TOOLING. `verify_pages.py` describes its own checks
+             as heuristic regexes, and the preflight severity policy decides
+             what actually blocks a pass. The pytest suite under
+             `scripts/tests/` is existing scaffolding to extend, not new
+             machinery to invent.
+          3. SKILLS NEVER INVOKED. Seven of the thirteen repo skills have
+             never run: meta-analysis, ban-watch, choose-archetype,
+             set-impact, forge-deck, prep-tournament, log-results. Propose
+             the one whose output the repo would actually use next, and say
+             what it would be used for.
+          4. A DECK THAT IS ACTUALLY STALE by the repo's own drift standard:
+             `scripts/meta_state.py diff`. Directory mtime is NOT the
+             standard. A deck untouched for a week whose metagame has not
+             moved is not stale; a deck touched yesterday whose archetype
+             shares moved is. If one qualifies, propose an `optimize-deck`
+             pass (it dispatches to `research-protocol`) against that deck's
+             `decks/<deck>/decklist.txt`, naming the drift you measured.
 
-          Propose ONE issue, for that deck only, framed as metagame
-          optimization. The issue body must direct the implementing agent to run
-          the repo's `optimize-deck` skill (which dispatches to
-          `research-protocol`) against that deck's `decks/<deck>/decklist.txt`,
-          optimizing the list against the CURRENT metagame. State the deck
-          directory you picked and the commit date that made it the newest.
+          Nothing here is scoped to one deck, and nothing is out of scope for
+          being a sibling of the deck last worked on. A previous cycle's
+          handoff or notes are EVIDENCE about what has been done; they never
+          narrow what may be proposed.
 
-          Do NOT propose work on any other deck. Do NOT run any of this
-          repo's workflow skills yourself and skip the `*` block's `mise
-          install && mise run setup` toolchain bootstrap too - brainstorm
-          proposes, implement executes, and this cycle produces a proposal,
-          not research output. If that deck was optimized recently enough
-          that another pass would add nothing, call `submit_outcome` with
-          `action="skip"` and a `reason`, and stop.
+          Propose exactly ONE issue. Its body must name which category it
+          came from, the file, skill, or deck it targets, and what done looks
+          like, in enough detail that the implementing agent needs no further
+          context.
+
+          Do NOT run any of this repo's workflow skills yourself, and skip
+          the `*` block's `mise install && mise run setup` toolchain
+          bootstrap: brainstorm proposes, implement executes, and this cycle
+          produces a proposal, not research output. Reading files, `git log`,
+          and the spellslinger MCP tools are all fine and expected.
+
+          Only if NOTHING in any of the four categories qualifies, call
+          `submit_outcome` with `action="skip"` and a `reason` that states,
+          category by category, what you considered and why each one yielded
+          nothing. A skip that does not account for all four categories is
+          not a valid skip.
         review: |
           As reviewer, be critical but fair. A multi-level review is expected:
           design, decklist choices, simulation evidence, and page structure.
