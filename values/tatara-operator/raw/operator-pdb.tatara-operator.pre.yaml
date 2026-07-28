@@ -36,6 +36,17 @@
 # Mutating those objects from here would fight the owning helm release's
 # server-side-apply field manager and be reverted on its next apply.
 #
+# ALSO SERVES #239 / #245. Both node-fault incidents prescribe the same
+# remediation - `kubectl cordon/drain worker-jtw3f33` - and without this budget
+# that drain, or two overlapping node maintenances, can take operator HA to
+# 0/3. This budget makes it serialise. The `unhealthyPodEvictionPolicy:
+# AlwaysAllow` above matters most in exactly that case: draining a node whose
+# operator pod is already unhealthy must not be blocked by the budget it is
+# exhausting. It does NOT detect a broken node - a node that stays `Ready`
+# while its pod network or CSI plane is wedged triggers no eviction at all.
+# That detection gap belongs to tatara-observability (per-node rules) and the
+# infra helmfile (node-problem-detector); both recorded in ROADMAP.md.
+#
 # It also does NOT defend against the 2026-07-24 failure mode itself. Those
 # nodes went NotReady and rebooted without a drain, so the pods were removed by
 # node-controller TAINT EVICTION, which bypasses PodDisruptionBudgets entirely
