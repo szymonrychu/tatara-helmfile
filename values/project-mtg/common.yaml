@@ -26,9 +26,19 @@ project:
       modelByKind:
         clarify: claude-opus-5
         review: claude-opus-5
-      # PLACEHOLDER (task 15, 2026-07-28): tatara-claude-code-wrapper has not yet
+      # PLACEHOLDER (task 15, 2026-07-29): tatara-claude-code-wrapper has not yet
       # cut the tag for Task 13 (ContractVersion 3 bump). Do NOT merge this
-      # branch until that tag is published; replace with the real vX.Y.Z.
+      # branch until BOTH preconditions hold: (1) that wrapper tag is
+      # published, AND (2) tatara-operator's matching ContractVersion=3
+      # release is ALREADY applied - helmfile.yaml.gotmpl's tatara-operator
+      # pin and values/tatara-operator/common.yaml's image.tag bumped past
+      # v1.35.1, which is still ContractVersion=2. Merging with only (1) true
+      # deploys a contract-3 wrapper against a contract-2 operator:
+      # AssertContractVersion fails at pod-ready (tatara-operator
+      # internal/controller/podwatch.go:181, before StampStageWorkStartedAt)
+      # and stops EVERY Task in all three projects instantly
+      # (stageReason=agent-contract-mismatch) until the operator pin catches
+      # up. See the 2026-07-29 MEMORY.md entry.
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:PLACEHOLDER_TASK13_WRAPPER_TAG
       maxTaskTokens: 2000000
       # 400: deck skills run multi-agent research/sim pipelines up to ~3h; 150
