@@ -1,22 +1,3 @@
-# HAZARD (2026-07-28) - DO NOT MERGE this branch (demand-driven-brainstorm)
-# to main before the tatara-operator pin in helmfile.yaml.gotmpl is bumped
-# to the release containing operator commit c0a50f9 (refine gets its own
-# cron field, scm.cron.refine.schedule) and its follow-up fix commit a3f9eb9
-# (also on the demand-driven-brainstorm branch, not yet released). This file
-# moves project.spec.scm.cron.brainstorm.schedule to
-# project.spec.scm.cron.refine.schedule below (a field mtg never had
-# before). The Project CRD is fully structural with no values.schema.json,
-# so applying refine.schedule against the currently-pinned chart 1.34.0
-# (which predates c0a50f9) gets SILENTLY PRUNED by the API server on apply -
-# no error, no warning, green pipeline - while brainstorm.schedule is
-# already removed from these values. Net effect if merged too early: both
-# refine and brainstorm scheduling go dead with zero error signal anywhere.
-# See MEMORY.md (2026-07-28 entry).
-#
-# mtg Project + Repository CRs, codified via the tatara-project chart.
-# First project wired to an in-cluster generic MCP server via
-# spec.agent.mcpServers (reaches the spellslinger MCP HTTP service; no
-# spellslinger code lives in tatara itself).
 namespace: tatara
 
 project:
