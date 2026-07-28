@@ -26,14 +26,21 @@ project:
       modelByKind:
         clarify: claude-opus-5
         review: claude-opus-5
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.2.0
+      # PLACEHOLDER (task 15, 2026-07-28): tatara-claude-code-wrapper has not yet
+      # cut the tag for Task 13 (ContractVersion 3 bump). Do NOT merge this
+      # branch until that tag is published; replace with the real vX.Y.Z.
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:PLACEHOLDER_TASK13_WRAPPER_TAG
       maxTaskTokens: 2000000
       # 400: deck skills run multi-agent research/sim pipelines up to ~3h; 150
       # starved multi-deck tasks. No unlimited exists (0 falls back to the 300
       # default), so this is the effective "do not starve" ceiling.
       maxTurnsPerTask: 400
       permissionMode: bypassPermissions
-      skillsRef: v1.5.2
+      # skillsRef is HAND-MAINTAINED, not CD-managed - see the 2026-07-28
+      # MEMORY.md correction. PLACEHOLDER (task 15, 2026-07-28): pending Task 14
+      # (tatara-agent-skills judged-approval-gate rewrite) publishing its tag.
+      # Do NOT merge this branch until replaced with the real vX.Y.Z.
+      skillsRef: PLACEHOLDER_TASK14_SKILLS_TAG
       # Inactivity window, not wall-clock: a streaming 3h Workflow run is safe,
       # but give long quiet Workflow phases a full hour before calling a stall.
       turnTimeoutSeconds: 3600

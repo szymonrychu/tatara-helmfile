@@ -33,17 +33,21 @@ project:
       effortByKind:
         clarify: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.2.6
+      # PLACEHOLDER (task 15, 2026-07-28): tatara-claude-code-wrapper has not yet
+      # cut the tag for Task 13 (ContractVersion 3 bump). Do NOT merge this
+      # branch until that tag is published; replace with the real vX.Y.Z.
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:PLACEHOLDER_TASK13_WRAPPER_TAG
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
       maxTaskTokens: 3000000
       maxTurnsPerTask: 100
       permissionMode: bypassPermissions
-      # Pin the agent-skills install (kills the `main` drift; component 5
-      # / component 4b). CD-managed: tatara-agent-skills release.yml rewrites
-      # this to each freshly cut tag. Do not hand-edit.
-      skillsRef: v1.5.2
+      # skillsRef is HAND-MAINTAINED, not CD-managed - see the 2026-07-28
+      # MEMORY.md correction. PLACEHOLDER (task 15, 2026-07-28): pending Task 14
+      # (tatara-agent-skills judged-approval-gate rewrite) publishing its tag.
+      # Do NOT merge this branch until replaced with the real vX.Y.Z.
+      skillsRef: PLACEHOLDER_TASK14_SKILLS_TAG
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
