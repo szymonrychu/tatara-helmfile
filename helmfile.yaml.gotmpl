@@ -66,21 +66,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-operator
   namespace: tatara
   createNamespace: true
-  # HAZARD (2026-07-28) - DO NOT MERGE this branch (demand-driven-brainstorm)
-  # before bumping this pin. This branch's values changes move
-  # scm.cron.brainstorm.schedule to the new scm.cron.refine.schedule field,
-  # which does not exist in chart 1.34.0's operator (added by tatara-operator
-  # commit c0a50f9, plus the follow-up fix commit a3f9eb9 that also touches
-  # Project CRD status fields, both on tatara-operator's
-  # demand-driven-brainstorm branch, not yet released). The Project CRD is
-  # fully structural with no values.schema.json, so applying the new field
-  # against this old pin gets SILENTLY PRUNED by the API server - no error,
-  # no warning, green pipeline - while brainstorm.schedule is already gone
-  # from the values. Result: both refine and brainstorm scheduling go dead
-  # with zero error signal anywhere. Bump this pin (and the three
-  # project-* pins below) to the operator release containing c0a50f9 /
-  # a3f9eb9 before merging.
-  version: 1.34.0
+  version: 1.35.0
   labels:
     purpose: tatara
     application: tatara-operator
@@ -99,17 +85,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
   namespace: tatara
   createNamespace: true
-  # HAZARD (2026-07-28) - DO NOT MERGE this branch (demand-driven-brainstorm)
-  # before bumping this pin. Same hazard as the tatara-operator pin above:
-  # this branch's values move scm.cron.brainstorm.schedule to
-  # scm.cron.refine.schedule, a field that requires the tatara-operator
-  # release containing commit c0a50f9 (plus follow-up fix a3f9eb9, both on
-  # the demand-driven-brainstorm branch, not yet released). Applying it
-  # against chart 1.34.0 gets silently pruned by the API server (structural
-  # CRD, no values.schema.json) with no error anywhere, while
-  # brainstorm.schedule is already removed - killing both schedules with no
-  # signal. Bump this pin in lockstep with tatara-operator's before merging.
-  version: 1.34.0
+  version: 1.35.0
   needs:
   - tatara/tatara-operator
   labels:
@@ -121,17 +97,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
   namespace: tatara
   createNamespace: true
-  # HAZARD (2026-07-28) - DO NOT MERGE this branch (demand-driven-brainstorm)
-  # before bumping this pin. Same hazard as the tatara-operator pin above:
-  # this branch's values move scm.cron.brainstorm.schedule to
-  # scm.cron.refine.schedule, a field that requires the tatara-operator
-  # release containing commit c0a50f9 (plus follow-up fix a3f9eb9, both on
-  # the demand-driven-brainstorm branch, not yet released). Applying it
-  # against chart 1.34.0 gets silently pruned by the API server (structural
-  # CRD, no values.schema.json) with no error anywhere, while
-  # brainstorm.schedule is already removed - killing both schedules with no
-  # signal. Bump this pin in lockstep with tatara-operator's before merging.
-  version: 1.34.0
+  version: 1.35.0
   needs:
   - tatara/tatara-operator
   labels:
@@ -147,17 +113,7 @@ releases:
   chart: oci://harbor.szymonrichert.pl/charts/tatara-project
   namespace: tatara
   createNamespace: true
-  # HAZARD (2026-07-28) - DO NOT MERGE this branch (demand-driven-brainstorm)
-  # before bumping this pin. Same hazard as the tatara-operator pin above:
-  # this branch's values move scm.cron.brainstorm.schedule to
-  # scm.cron.refine.schedule, a field that requires the tatara-operator
-  # release containing commit c0a50f9 (plus follow-up fix a3f9eb9, both on
-  # the demand-driven-brainstorm branch, not yet released). Applying it
-  # against chart 1.34.0 gets silently pruned by the API server (structural
-  # CRD, no values.schema.json) with no error anywhere, while
-  # brainstorm.schedule is already removed - killing both schedules with no
-  # signal. Bump this pin in lockstep with tatara-operator's before merging.
-  version: 1.34.0
+  version: 1.35.0
   needs:
   - tatara/tatara-operator
   labels:
