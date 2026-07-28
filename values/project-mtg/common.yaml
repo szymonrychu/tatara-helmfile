@@ -1,7 +1,3 @@
-# mtg Project + Repository CRs, codified via the tatara-project chart.
-# First project wired to an in-cluster generic MCP server via
-# spec.agent.mcpServers (reaches the spellslinger MCP HTTP service; no
-# spellslinger code lives in tatara itself).
 namespace: tatara
 
 project:
@@ -140,21 +136,13 @@ project:
       mergePolicy: afterApproval
       prReactionScope: labeledOrMentioned
       cron:
-        # First brainstorm for this project (previously absent -> Enabled=false ->
-        # never ran). Cron is evaluated in UTC: robfig's SpecSchedule.Next does
-        # `if loc == time.Local { loc = t.Location() }`, so a bare
-        # cron.ParseStandard schedule (no explicit TZ) is evaluated in the base
-        # timestamp's location, and the base is a metav1.Time, which is always
-        # UTC regardless of the image's tzdata. So `0 12 * * *` is noon UTC =
-        # 14:00 Europe/Warsaw (CEST).
         brainstorm:
+          # Demand-driven since operator v1.35: NO schedule. See the operator's
+          # scm.cron.brainstorm docs; enabled still gates the refill pass.
           enabled: true
           # Backlog TARGET, not a cap. Only one repo in this project and the
-          # mandate is one deck at a time, so keep it low. Was
-          # maxOpenProposals: 3 (a ceiling), which happened to be the same
-          # number but meant the opposite thing.
+          # mandate is one deck at a time, so keep it low.
           targetOpenProposals: 2
-          schedule: 0 12 * * *
           # Auto-close bot proposals with no human engagement after 14 days.
           staleProposalDays: 14
           sources:
@@ -164,6 +152,16 @@ project:
         issueScan:
           maxPerRepo: 1
           schedule: 0 */4 * * *
+        # Project refiner, on its own cron since brainstorm stopped having one.
+        # Cron is evaluated in UTC: robfig's SpecSchedule.Next does
+        # `if loc == time.Local { loc = t.Location() }`, so a bare
+        # cron.ParseStandard schedule (no explicit TZ) is evaluated in the base
+        # timestamp's location, and the base is a metav1.Time, which is always
+        # UTC regardless of the image's tzdata. So `0 12 * * *` is noon UTC =
+        # 14:00 Europe/Warsaw (CEST).
+        refine:
+          schedule: 0 12 * * *
+          closedLookbackDays: 30
 
 repositories:
   - name: mtg-decks

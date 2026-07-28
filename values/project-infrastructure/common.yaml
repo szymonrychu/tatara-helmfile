@@ -1,9 +1,3 @@
-# GitLab "infrastructure" Project + Repository CRs, codified via the
-# tatara-project chart (replaces the old raw/project-infrastructure +
-# repositories-infrastructure presync manifests). Behavior-preserving: spec
-# values are identical to the manifests they replace. The infrastructure-scm
-# Secret is still applied by the tatara-operator release presync (sops), not by
-# this chart.
 namespace: tatara
 
 project:
@@ -84,13 +78,19 @@ project:
       priorityLabel: tatara/priority
       cron:
         brainstorm:
+          # Demand-driven since operator v1.35: NO schedule. The operator refills
+          # toward targetOpenProposals on a level-triggered reconcile pass and
+          # chains sessions back to back off the Task-completion watch edge. It
+          # stops only when an agent reports action=exhausted, and resumes on a
+          # foreign push, an operator merge for a clarify/incident/takeover Task,
+          # a maintainer comment or close, or the tatara.dev/brainstorm-resume
+          # annotation.
           enabled: true
           # Backlog TARGET, not a cap: the operator refills toward this level
           # across all 5 repos and launches the next session the moment a
           # maintainer approves or discards one. It never closes a proposal to
-          # reconcile downward. Was maxOpenProposals: 10 (a ceiling).
+          # reconcile downward.
           targetOpenProposals: 3
-          schedule: 0 6 * * *
           # Activate the stale-proposal reaper (operator #199): auto-close bot
           # proposals with no human engagement after 14 days.
           staleProposalDays: 14
@@ -103,12 +103,13 @@ project:
           # Stretched hourly -> every 4h (token conservation); webhooks cover real
           # issue activity, so the backstop scan can be less frequent.
           schedule: 0 */4 * * *
-        # Project refiner pre-step (opt-in: closedLookbackDays > 0). Before each
-        # due scan cycle the operator runs an agent that triages open + recently-
-        # closed issues across all repos: closes duplicates and already-
-        # implemented proposals, tightens scope, splits too-broad issues, files
-        # followups. The terminal sink the brainstorm lifecycle otherwise lacks.
+        # Project refiner: periodic grooming of open + recently-closed issues
+        # across all repos - closes duplicates and already-implemented proposals,
+        # tightens scope, splits too-broad issues, files followups. It USED to
+        # ride the brainstorm cron as a pre-scan barrier; brainstorm has no cron
+        # any more, so it carries its own schedule. Empty schedule disables it.
         refine:
+          schedule: 0 6 * * *
           closedLookbackDays: 30
 
 repositories:
