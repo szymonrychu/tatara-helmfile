@@ -1,0 +1,38 @@
+name: lint
+
+# Static gate on the repo's own CD machinery. Deliberately separate from
+# diff.yaml: this needs only python and the checkout - no cluster, no secrets -
+# so it runs on a HOSTED runner and never touches
+# arc-runner-tatara-helmfile, whose ServiceAccount is cluster-admin.
+#
+# It also runs the cd-release unit suites (test_apply_pins.py /
+# test_semver_bump.py), which existed but were wired into no workflow.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  cd-machinery:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pytest
+
+      - name: unit tests (cd-release + pin coverage)
+        run: python -m pytest .github -q
+
+      # The merge gate for issue #290: a project silently absent from a
+      # producer's `pins:` array can no longer drift, because divergence
+      # between per-project CD-managed pins fails this check.
+      - name: CD pin fan-out completeness guard
+        run: python .github/scripts/check_pin_coverage.py
