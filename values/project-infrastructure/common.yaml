@@ -33,7 +33,7 @@ project:
       effortByKind:
         clarify: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.2.6
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.3.0
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
@@ -43,7 +43,7 @@ project:
       # Pin the agent-skills install (kills the `main` drift; component 5
       # / component 4b). HAND-MANAGED: see the note in
       # values/project-tatara/common.yaml. Move all three projects together.
-      skillsRef: v1.5.2
+      skillsRef: v1.8.0
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at

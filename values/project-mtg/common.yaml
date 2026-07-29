@@ -26,14 +26,14 @@ project:
       modelByKind:
         clarify: claude-opus-5
         review: claude-opus-5
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.2.6
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.3.0
       maxTaskTokens: 2000000
       # 400: deck skills run multi-agent research/sim pipelines up to ~3h; 150
       # starved multi-deck tasks. No unlimited exists (0 falls back to the 300
       # default), so this is the effective "do not starve" ceiling.
       maxTurnsPerTask: 400
       permissionMode: bypassPermissions
-      skillsRef: v1.5.2
+      skillsRef: v1.8.0
       # Inactivity window, not wall-clock: a streaming 3h Workflow run is safe,
       # but give long quiet Workflow phases a full hour before calling a stall.
       turnTimeoutSeconds: 3600

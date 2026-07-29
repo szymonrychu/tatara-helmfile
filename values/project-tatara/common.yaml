@@ -37,7 +37,7 @@ project:
       effortByKind:
         clarify: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.2.6
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.3.0
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
@@ -50,7 +50,7 @@ project:
       # overrides the image's baked ref and does not move on its own. Move all
       # three projects together - .github/scripts/check_pin_coverage.py fails
       # the build if they diverge.
-      skillsRef: v1.5.2
+      skillsRef: v1.8.0
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
