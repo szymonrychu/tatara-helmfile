@@ -33,31 +33,14 @@ project:
       effortByKind:
         clarify: low
         review: medium
-      # PLACEHOLDER (task 15, 2026-07-29): tatara-claude-code-wrapper has not yet
-      # cut the tag for Task 13 (ContractVersion 3 bump). Do NOT merge this
-      # branch until BOTH preconditions hold: (1) that wrapper tag is
-      # published, AND (2) tatara-operator's matching ContractVersion=3
-      # release is ALREADY applied - helmfile.yaml.gotmpl's tatara-operator
-      # pin and values/tatara-operator/common.yaml's image.tag bumped past
-      # v1.35.1, which is still ContractVersion=2. Merging with only (1) true
-      # deploys a contract-3 wrapper against a contract-2 operator:
-      # AssertContractVersion fails at pod-ready (tatara-operator
-      # internal/controller/podwatch.go:181, before StampStageWorkStartedAt)
-      # and stops EVERY Task in all three projects instantly
-      # (stageReason=agent-contract-mismatch) until the operator pin catches
-      # up. See the 2026-07-29 MEMORY.md entry.
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:PLACEHOLDER_TASK13_WRAPPER_TAG
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.3.0
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
       maxTaskTokens: 3000000
       maxTurnsPerTask: 100
       permissionMode: bypassPermissions
-      # skillsRef is HAND-MAINTAINED, not CD-managed - see the 2026-07-28
-      # MEMORY.md correction. PLACEHOLDER (task 15, 2026-07-28): pending Task 14
-      # (tatara-agent-skills judged-approval-gate rewrite) publishing its tag.
-      # Do NOT merge this branch until replaced with the real vX.Y.Z.
-      skillsRef: PLACEHOLDER_TASK14_SKILLS_TAG
+      skillsRef: v1.8.0
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
