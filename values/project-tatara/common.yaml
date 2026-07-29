@@ -44,10 +44,7 @@ project:
       maxTaskTokens: 3000000
       maxTurnsPerTask: 100
       permissionMode: bypassPermissions
-      # Pin the agent-skills install (kills the `main` drift; component 5
-      # / component 4b). CD-managed: tatara-agent-skills release.yml rewrites
-      # this to each freshly cut tag. Do not hand-edit.
-      skillsRef: v1.5.2
+      skillsRef: v1.8.0
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at

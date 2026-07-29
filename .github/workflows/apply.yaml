@@ -27,6 +27,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Hard block, checked before anything else spins up. The PR-time
+      # `diff.yaml` gate covers the reviewed-PR path only; a placeholder
+      # reaching main by any other route (direct push, admin merge, a revert
+      # landing one) would otherwise apply to the live cluster with nothing
+      # objecting, since this job runs on push to main with a cluster-admin
+      # ServiceAccount and the Project CRD has no schema validation (it
+      # renders spec verbatim via toYaml). Same check as diff.yaml's
+      # equivalent step, repeated here rather than trusted to have already run.
+      - name: block unresolved values placeholders
+        run: |
+          if grep -rn "PLACEHOLDER_" values/; then
+            echo "::error::Unresolved PLACEHOLDER_ sentinel(s) in values/ (see above)."
+            echo "::error::A placeholder marks a value pending an unpublished upstream tag - fill in the real value before this can apply. This job runs cluster-admin and the Project CRD has no schema validation, so a placeholder here would be applied to the cluster as-is."
+            exit 1
+          fi
+          echo "No PLACEHOLDER_ sentinels found in values/."
+
       - name: install mise
         run: |
           curl -fsSL https://mise.run | sh
