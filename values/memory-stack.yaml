@@ -1,0 +1,51 @@
+# Shared memory-stack sizing for EVERY project release.
+#
+# Why this file exists (issues #237, #263). Each project's CNPG postgres +
+# neo4j backend is sized from `project.spec.memory`. Those values used to be
+# copied per project, so an incident fix landed on project-tatara and silently
+# never reached project-infrastructure or project-mtg:
+#
+#   2026-07-05  mem-tatara-pg PVCs filled to 100%; postgres could no longer
+#               write WAL; /memories:bulk 503'd. pgStorage 10Gi -> 20Gi and WAL
+#               moved onto its own PVC (tatara-operator#238).
+#   2026-07-06  a WAL burst during a standby resync overran the then-default
+#               2Gi WAL volume (max_slot_wal_keep_size is half the volume, so
+#               1Gi of cap left zero headroom) and crashlooped both replicas.
+#               pgWalStorage sized to 10Gi.
+#   2026-07-25  mem-infrastructure-pg-2 diverged onto timeline 35 and
+#               crashlooped 21.5h; its orphan replication slot pinned 240 MiB
+#               on a 2 GiB WAL volume, i.e. a quarter of the volume held by a
+#               member that could never rejoin (tatara-helmfile#263).
+#
+# The 2 GiB that hurt project-infrastructure was never chosen by anyone: it
+# was the tatara.dev CRD's `pgWalStorage` default at the time the Project CR
+# was FIRST written. A kubebuilder default is applied once, on the write that
+# omits the field - raising the CRD default later (the operator moved it
+# 2Gi -> 8Gi) does NOT propagate to an existing Project. Only an explicit
+# value here reaches a live stack. So sizing is declared here, once, for all
+# projects, and no project may inherit an unchosen default again.
+#
+# Loaded by the `project` template in helmfile.yaml.gotmpl BEFORE each
+# release's own values, so a project can still override a single field with a
+# stated reason. Adding a project without touching this file is the point.
+#
+# Raising a size is a live PVC expansion. The cluster's default StorageClass
+# rook-ceph-rwx (CephFS) has allowVolumeExpansion: true, so CNPG grows the
+# volumes online. CNPG REJECTS a size DECREASE and rejects disabling
+# walStorage, so every number here is a one-way door - lower it and the
+# reconcile fails.
+project:
+  spec:
+    memory:
+      # PGDATA volume. 20Gi is the post-2026-07-05 size that mem-tatara has
+      # run on since; 10Gi is the size that filled.
+      pgStorage: 20Gi
+      # Dedicated WAL volume, separate from PGDATA. The operator derives
+      # postgres' max_slot_wal_keep_size as HALF of this, so 10Gi caps a
+      # single stuck replication slot at 5Gi and still leaves 5Gi for
+      # checkpoint WAL and an archive backlog. That headroom is what a 2Gi
+      # volume (1Gi cap) did not have on 2026-07-06.
+      pgWalStorage: 10Gi
+      # neo4j graph volume. Unchanged from what every project already ran;
+      # declared here so all memory-stack sizing has one home.
+      neo4jStorage: 10Gi
