@@ -89,13 +89,32 @@ runs:
         fi
         echo "significance level: $level"
 
-        # 2. compute the next tag from the latest existing semver tag (seeded)
         git fetch --tags --force origin >/dev/null 2>&1 || true
+
+        # 2. Re-run safety: if a semver tag already points at HEAD, an earlier
+        # attempt of THIS release already cut it. Reuse it; do not cut a second.
+        # Two semver tags on one commit is not benign: a consumer's build.sh
+        # `git describe --tags` resolves to the LOWER of them, so the image gets
+        # published under the previous version while the chart and the deploy
+        # pins carry the new one. That is exactly what wedged the wrapper on
+        # 2026-07-30: attempt 1 cut v1.3.4 then died in `publish image`, the
+        # re-run cut v1.3.5 on the same commit, the image went out as :v1.3.4,
+        # and every agent pod sat in ImagePullBackOff on a :v1.3.5 that was
+        # never pushed. Consumers now take VERSION from this step's output, so
+        # this guard is defence in depth on top of that.
+        existing="$(git tag --points-at HEAD --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+        if [ -n "$existing" ]; then
+          echo "commit $SHA is already tagged $existing (re-run of a release that tagged before failing); reusing it"
+          echo "version=$existing" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # 3. compute the next tag from the latest existing semver tag (seeded)
         latest="$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
         next="$("$PY" "$ACTION_PATH/semver-bump.py" "$latest" "$level")"
         echo "latest=${latest:-<seed>} level=$level next=$next"
 
-        # 3. push the tag (bot-authored, deterministic remote auth)
+        # 4. push the tag (bot-authored, deterministic remote auth)
         git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
         if git rev-parse -q --verify "refs/tags/$next" >/dev/null; then
           echo "tag $next already exists locally; skipping create"
