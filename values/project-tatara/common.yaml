@@ -49,7 +49,8 @@ project:
       # the wrapper Dockerfile's TATARA_SKILLS_REF, NOT this value, so this pin
       # overrides the image's baked ref and does not move on its own. Move all
       # three projects together - .github/scripts/check_pin_coverage.py fails
-      # the build if they diverge.
+      # the build if they diverge, and check_agent_pins() there also refuses
+      # this AND the image tag above if either goes floating (main/latest) or absent.
       skillsRef: v1.8.0
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
