@@ -47,6 +47,15 @@ WRAPPER_IMAGE_RE = re.compile(
 SKILLS_REF_RE = re.compile(r"^\s*skillsRef: (\S+)$", re.MULTILINE)
 OPERATOR_TAG_RE = re.compile(r'^\s*tag: "(\S+)"$', re.MULTILINE)
 
+# A concrete pin is a vX.Y.Z tag. "main", "latest", a branch name or an
+# absent value all mean "whatever upstream merged last", which is how a
+# skills or wrapper merge ships live to a running fleet the moment it lands
+# (tatara-operator internal/agent/pod.go:733-742 defaults TATARA_SKILLS_REF
+# to "main" when spec.agent.skillsRef is empty). Uniformity across projects
+# (checked below) says nothing about this: three projects agreeing on
+# `skillsRef: main` would pass check_uniform and still ship live.
+SEMVER_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
+
 WRAPPER_PRODUCER = (
     "szymonrychu/tatara-claude-code-wrapper .github/workflows/release.yml, "
     "the `pins:` array of the `bump tatara-helmfile` step"
@@ -157,6 +166,44 @@ def check(facts):
     return problems
 
 
+def check_agent_pins(root):
+    """Return a list of human-readable problems, one per unpinned agent input.
+
+    Independent of collect()/check(): those require exactly one match per
+    file and raise ValueError on anything else, which is right for the
+    uniformity check but would abort before this one ever ran. This walks
+    the same values/project-*/common.yaml files with the same regexes but
+    never raises, so an absent or floating pin is reported, not a crash.
+    """
+    problems = []
+    for path in sorted(Path(root).glob("values/project-*/common.yaml")):
+        rel = f"values/{path.parent.name}/common.yaml"
+        text = path.read_text(encoding="utf-8")
+
+        refs = SKILLS_REF_RE.findall(text)
+        if not refs:
+            problems.append(
+                f"{rel}: skillsRef is absent; the operator defaults it to 'main'"
+            )
+        else:
+            for ref in refs:
+                if not SEMVER_TAG.match(ref):
+                    problems.append(f"{rel}: skillsRef={ref!r} is not a vX.Y.Z tag")
+
+        tags = WRAPPER_IMAGE_RE.findall(text)
+        if not tags:
+            problems.append(
+                f"{rel}: wrapper image tag is absent (no tatara-claude-code-wrapper image pin found)"
+            )
+        else:
+            for tag in tags:
+                if not SEMVER_TAG.match(tag):
+                    problems.append(
+                        f"{rel}: wrapper image tag {tag!r} is not a vX.Y.Z tag"
+                    )
+    return problems
+
+
 def collect(root):
     """Read the repo's pin sites into a plain facts dict."""
     root = Path(root)
@@ -195,11 +242,13 @@ def collect(root):
 
 def main(argv):
     root = argv[0] if argv else str(Path(__file__).resolve().parents[2])
+    # check_agent_pins() never raises, so it always contributes its findings,
+    # even when collect() below aborts on a file too malformed to parse.
+    problems = check_agent_pins(root)
     try:
-        problems = check(collect(root))
+        problems += check(collect(root))
     except ValueError as e:
-        sys.stderr.write(f"::error::pin-coverage guard could not read the pins: {e}\n")
-        return 1
+        problems.append(f"pin-coverage guard could not read the pins: {e}")
     if problems:
         sys.stderr.write(
             "::error::CD pin fan-out is INCOMPLETE - a project is drifting.\n"

@@ -171,6 +171,71 @@ def test_extract_one_rejects_a_duplicated_pin():
         )
 
 
+# --- floating / absent agent pins (a skills or wrapper merge must not ship
+# --- live to a Project just because its pin was never set) ---
+
+
+def test_agent_pins_must_be_concrete(tmp_path):
+    """A floating skillsRef or wrapper tag ships every upstream merge live."""
+    values = tmp_path / "values" / "project-x"
+    values.mkdir(parents=True)
+    (values / "common.yaml").write_text(
+        "project:\n"
+        "  spec:\n"
+        "    agent:\n"
+        "      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:latest\n"
+        "      skillsRef: main\n"
+    )
+    problems = guard.check_agent_pins(tmp_path)
+    assert len(problems) == 2
+    assert any("skillsRef" in p for p in problems)
+    assert any("wrapper image tag" in p for p in problems)
+
+
+def test_agent_pins_accept_a_semver_tag(tmp_path):
+    values = tmp_path / "values" / "project-x"
+    values.mkdir(parents=True)
+    (values / "common.yaml").write_text(
+        "project:\n"
+        "  spec:\n"
+        "    agent:\n"
+        "      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.3.5\n"
+        "      skillsRef: v1.8.0\n"
+    )
+    assert guard.check_agent_pins(tmp_path) == []
+
+
+def test_agent_pins_reject_an_absent_skillsref(tmp_path):
+    """Absent is worse than floating: pod.go defaults TATARA_SKILLS_REF to 'main'."""
+    values = tmp_path / "values" / "project-x"
+    values.mkdir(parents=True)
+    (values / "common.yaml").write_text(
+        "project:\n"
+        "  spec:\n"
+        "    agent:\n"
+        "      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.3.5\n"
+    )
+    problems = guard.check_agent_pins(tmp_path)
+    assert len(problems) == 1
+    assert "skillsRef is absent" in problems[0]
+
+
+def test_agent_pins_reject_an_absent_wrapper_image(tmp_path):
+    values = tmp_path / "values" / "project-x"
+    values.mkdir(parents=True)
+    (values / "common.yaml").write_text(
+        "project:\n  spec:\n    agent:\n      skillsRef: v1.8.0\n"
+    )
+    problems = guard.check_agent_pins(tmp_path)
+    assert len(problems) == 1
+    assert "wrapper image tag is absent" in problems[0]
+
+
+def test_agent_pins_no_project_files_is_clean(tmp_path):
+    (tmp_path / "values").mkdir()
+    assert guard.check_agent_pins(tmp_path) == []
+
+
 # --- against the real repo, so the guard cannot rot away from the pin sites ---
 
 
@@ -182,3 +247,7 @@ def test_real_repo_pins_parse_and_pass():
         "project-mtg",
     }
     assert guard.check(collected) == []
+
+
+def test_real_repo_agent_pins_are_all_concrete():
+    assert guard.check_agent_pins(REPO_ROOT) == []
