@@ -32,20 +32,25 @@ project:
       # starved multi-deck tasks. No unlimited exists (0 falls back to the 300
       # default), so this is the effective "do not starve" ceiling.
       maxTurnsPerTask: 400
+      # 6, up from the operator default of 3. Deck review is genuinely
+      # iterative: mtg-decks#18 reached round 3 with all eight round-1 findings
+      # verified fixed and four new ones open, and parked review-loop-exhausted
+      # one round from done. review-loop-exhausted is a NO-RE-ENTRY park reason
+      # (operator internal/controller/resume.go), so hitting the cap on
+      # improving work is terminal, not a pause.
+      maxReviewRounds: 6
       permissionMode: bypassPermissions
       # HAND-MANAGED: see the note in values/project-tatara/common.yaml. Move
       # all three projects together; check_pin_coverage.py's check_agent_pins()
       # refuses a floating or absent value here or on the image tag above.
       skillsRef: v2.0.0
-      # 7200: the "inactivity window, not wall-clock" contract is NOT what runs
-      # today. The operator anchors the deadline on max(turn-started-at,
-      # turn-last-activity-at) and refreshes the latter from the wrapper's
-      # GetTurn (turncallback.go), but the wrapper never advances it past
-      # submit - so the anchor is frozen and the window behaves as a hard
-      # wall-clock cap on the whole turn. Live: mtg-decks#18 wrote a decklist,
-      # captured a meta snapshot and ran the sim scripts for 60 minutes, and was
-      # killed mid-work with nothing pushed. Until the wrapper stamps activity,
-      # this value IS the longest a single turn may run.
+      # 7200s of INACTIVITY, not wall-clock. The operator anchors the deadline
+      # on max(turn-started-at, turn-last-activity-at); wrapper v2.0.2 (#152)
+      # starts the transcript tailer at turn submit rather than at the first
+      # Stop hook, so the activity anchor now advances during a turn and the
+      # window is a true idle timeout. Before that fix the anchor was frozen
+      # and this behaved as a hard cap on the whole turn - which is what killed
+      # mtg-decks#18 mid-work at 60 minutes with nothing pushed.
       turnTimeoutSeconds: 7200
       # mtg-decks ships its own workflow skills (no profiles: frontmatter ->
       # wildcard -> installed for every agent kind). Cloned with the project's
@@ -194,4 +199,4 @@ repositories:
       # tatara-project chart requires a 5-field reingestSchedule cron on every
       # Repository entry; not called out in the brief. Same cadence as the
       # project-tatara repos.
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "58 9 * * *"

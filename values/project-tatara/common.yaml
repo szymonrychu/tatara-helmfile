@@ -58,15 +58,13 @@ project:
       # the build if they diverge, and check_agent_pins() there also refuses
       # this AND the image tag above if either goes floating (main/latest) or absent.
       skillsRef: v2.0.0
-      # 7200: the "inactivity window, not wall-clock" contract is NOT what runs
-      # today. The operator anchors the deadline on max(turn-started-at,
-      # turn-last-activity-at) and refreshes the latter from the wrapper's
-      # GetTurn (turncallback.go), but the wrapper never advances it past
-      # submit - so the anchor is frozen and the window behaves as a hard
-      # wall-clock cap on the whole turn. Live: mtg-decks#18 wrote a decklist,
-      # captured a meta snapshot and ran the sim scripts for 60 minutes, and was
-      # killed mid-work with nothing pushed. Until the wrapper stamps activity,
-      # this value IS the longest a single turn may run.
+      # 7200s of INACTIVITY, not wall-clock. The operator anchors the deadline
+      # on max(turn-started-at, turn-last-activity-at); wrapper v2.0.2 (#152)
+      # starts the transcript tailer at turn submit rather than at the first
+      # Stop hook, so the activity anchor now advances during a turn and the
+      # window is a true idle timeout. Before that fix the anchor was frozen
+      # and this behaved as a hard cap on the whole turn - which is what killed
+      # mtg-decks#18 mid-work at 60 minutes with nothing pushed.
       turnTimeoutSeconds: 7200
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
@@ -179,52 +177,50 @@ repositories:
       url: "https://github.com/szymonrychu/tatara-memory"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "17 6 * * *"
   - name: tatara-cli
     spec:
       url: "https://github.com/szymonrychu/tatara-cli"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "34 6 * * *"
   - name: tatara-operator
     spec:
       url: "https://github.com/szymonrychu/tatara-operator"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
-  - name: tatara-chat
-    spec:
-      url: "https://github.com/szymonrychu/tatara-chat"
-      defaultBranch: main
-      semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "51 6 * * *"
+  # tatara-chat dropped 2026-08-08 (#280): the release is `installed: false`
+  # (decommissioned, accepted data loss), so enrolling it bought a daily
+  # LLM-semantic re-ingest of a repo nothing reads. Re-add if it is ever
+  # reinstalled.
   - name: tatara-memory-repo-ingester
     spec:
       url: "https://github.com/szymonrychu/tatara-memory-repo-ingester"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "8 7 * * *"
   - name: tatara-claude-code-wrapper
     spec:
       url: "https://github.com/szymonrychu/tatara-claude-code-wrapper"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "25 7 * * *"
   - name: tatara-observability
     spec:
       url: "https://github.com/szymonrychu/tatara-observability"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "42 7 * * *"
   - name: tatara-documentation
     spec:
       url: "https://github.com/szymonrychu/tatara-documentation"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "59 7 * * *"
   - name: tatara-agent-skills
     spec:
       url: "https://github.com/szymonrychu/tatara-agent-skills"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "16 8 * * *"
