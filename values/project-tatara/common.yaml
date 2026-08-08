@@ -51,7 +51,7 @@ project:
       # three projects together - .github/scripts/check_pin_coverage.py fails
       # the build if they diverge, and check_agent_pins() there also refuses
       # this AND the image tag above if either goes floating (main/latest) or absent.
-      skillsRef: v1.8.0
+      skillsRef: v2.0.0
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
