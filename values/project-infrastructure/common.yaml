@@ -44,7 +44,7 @@ project:
       # / component 4b). HAND-MANAGED: see the note in
       # values/project-tatara/common.yaml. Move all three projects together;
       # check_pin_coverage.py's check_agent_pins() refuses a floating or absent value.
-      skillsRef: v1.8.0
+      skillsRef: v2.0.0
       turnTimeoutSeconds: 2700
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at

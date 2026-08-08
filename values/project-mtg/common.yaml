@@ -36,7 +36,7 @@ project:
       # HAND-MANAGED: see the note in values/project-tatara/common.yaml. Move
       # all three projects together; check_pin_coverage.py's check_agent_pins()
       # refuses a floating or absent value here or on the image tag above.
-      skillsRef: v1.8.0
+      skillsRef: v2.0.0
       # Inactivity window, not wall-clock: a streaming 3h Workflow run is safe,
       # but give long quiet Workflow phases a full hour before calling a stall.
       turnTimeoutSeconds: 3600
