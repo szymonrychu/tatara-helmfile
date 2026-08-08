@@ -37,9 +37,16 @@ project:
       # all three projects together; check_pin_coverage.py's check_agent_pins()
       # refuses a floating or absent value here or on the image tag above.
       skillsRef: v2.0.0
-      # Inactivity window, not wall-clock: a streaming 3h Workflow run is safe,
-      # but give long quiet Workflow phases a full hour before calling a stall.
-      turnTimeoutSeconds: 3600
+      # 7200: the "inactivity window, not wall-clock" contract is NOT what runs
+      # today. The operator anchors the deadline on max(turn-started-at,
+      # turn-last-activity-at) and refreshes the latter from the wrapper's
+      # GetTurn (turncallback.go), but the wrapper never advances it past
+      # submit - so the anchor is frozen and the window behaves as a hard
+      # wall-clock cap on the whole turn. Live: mtg-decks#18 wrote a decklist,
+      # captured a meta snapshot and ran the sim scripts for 60 minutes, and was
+      # killed mid-work with nothing pushed. Until the wrapper stamps activity,
+      # this value IS the longest a single turn may run.
+      turnTimeoutSeconds: 7200
       # mtg-decks ships its own workflow skills (no profiles: frontmatter ->
       # wildcard -> installed for every agent kind). Cloned with the project's
       # scmSecretRef token via the wrapper's global GIT_TOKEN credential helper.
