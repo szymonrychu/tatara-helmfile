@@ -153,3 +153,19 @@
   mint/admission path, so new work walks past the ceiling while an answered
   conversation cannot get back in. Not raised to 5 like the other projects -
   the mandate here is one deck at a time.
+
+- 2026-08-09 (control-plane scheduling) The cluster has ZERO taints, so
+  `node-role.kubernetes.io/control-plane` is a plain label and NOTHING keeps a
+  pod off worker-jtw3f33 (CI runners) or nas-d0w363i without an explicit
+  affinity - that is how two operator-stamped `grafana-mcp-*` Deployments
+  landed on the CI node. Fixed with required control-plane nodeAffinity for
+  both the manager (`affinity`) and the stamped MCP pods (`mcpScheduling`,
+  operator chart >= 2.4.0). The manager's podAntiAffinity is REQUIRED (3
+  replicas, 3 control-plane nodes, one-per-node is the point) and therefore
+  FORCES `strategy: {maxSurge: 0, maxUnavailable: 1}`: the default 25% surge
+  pod has no eligible node and wedges the rollout Pending. The MCP
+  podAntiAffinity is PREFERRED on purpose - required would cap the fleet at 3
+  grafana-mcp pods and break their 1-replica default-RollingUpdate image
+  bumps. The PDB in raw/operator-pdb.tatara-operator.pre.yaml needed no
+  change: a rolling update deletes pods directly and never goes through the
+  eviction API a PDB gates, and the budget is maxUnavailable-shaped anyway.

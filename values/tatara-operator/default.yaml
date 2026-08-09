@@ -1,6 +1,60 @@
 # Manager replicas: 3 for HA (leaderElection:true -> 1 active, 2 standby).
 replicaCount: 3
 
+# Manager Pod placement. Cluster-specific by rule 14: the chart defaults every
+# one of these EMPTY and renders nothing when unset, so this is the only place
+# they exist.
+#
+# nodeAffinity is REQUIRED, not preferred. This cluster has ZERO taints, so a
+# control-plane node is just a labelled worker and nothing otherwise keeps the
+# manager off worker-jtw3f33 (dedicated to CI runners) or nas-d0w363i (the NAS,
+# where the agent wrapper pods live, see agentScheduling below). Exists on
+# node-role.kubernetes.io/control-plane matches the three schedulable
+# control-plane nodes kubernetes-47d28x2 / -5vv07x2 / -jhv07x2.
+#
+# podAntiAffinity is REQUIRED too. replicaCount is 3 and there are exactly 3
+# control-plane nodes, so one-per-node is achievable AND is the entire point of
+# running 3 replicas: a required rule turns "two managers on one node" into a
+# visible scheduling failure rather than a silent HA regression that only shows
+# up when that node dies. The selector is the chart's own
+# tatara-operator.selectorLabels (release name and chart name are both
+# "tatara-operator"); keep it in sync if the release is ever renamed - the same
+# caveat the PDB in raw/operator-pdb.tatara-operator.pre.yaml carries.
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: tatara-operator
+            app.kubernetes.io/instance: tatara-operator
+
+# REQUIRED companion to the anti-affinity above, not a tuning preference. The
+# default RollingUpdate surges 25% (rounds up to 1 extra pod); with 3
+# required-anti-affine replicas on exactly 3 eligible nodes that surge pod has
+# nowhere to land, sits Pending, and the rollout never completes. maxSurge: 0 +
+# maxUnavailable: 1 makes it delete-then-replace one node at a time, which
+# always fits. Cost is a brief 2/3 during upgrades, which leader election
+# already tolerates.
+#
+# Compatible with raw/operator-pdb.tatara-operator.pre.yaml (maxUnavailable: 1),
+# for two independent reasons: a Deployment rolling update deletes pods directly
+# through the apps controller and never goes through the eviction API a PDB
+# gates; and the budget is maxUnavailable-shaped, matching this rollout exactly
+# (a minAvailable: 3 budget would have been the deadlock case, which is why that
+# file chose maxUnavailable).
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
+
 ingress:
   enabled: true
   host: tatara.szymonrichert.pl
@@ -42,6 +96,42 @@ agentRunAsUser: 10001
 agentScheduling:
   nodeSelector:
     nas: "true"
+
+# Placement for the per-Project grafana-mcp Deployments the operator STAMPS
+# (rule 6 single JSON document -> MCP_SCHEDULING ConfigMap key, parsed at
+# operator boot). Before this existed the operator gave them no constraints at
+# all and two grafana-mcp-* Deployments landed on worker-jtw3f33, the node
+# dedicated to CI runners.
+#
+# nodeAffinity REQUIRED, for the same reason as the manager's above: no taints
+# anywhere, so only an explicit rule keeps these off the CI-runner and NAS nodes.
+#
+# podAntiAffinity PREFERRED, deliberately NOT required. One grafana-mcp
+# Deployment exists per Project with spec.grafana.enabled (2 today, 3 project
+# releases in helmfile.yaml.gotmpl, more possible). A required cross-MCP rule
+# over kubernetes.io/hostname would cap the whole fleet at 3 pods - one per
+# control-plane node - and a 4th Project enabling Grafana would sit Pending
+# forever with nothing pointing back here. It would also break routine image
+# bumps: each stamped Deployment is 1 replica on the DEFAULT RollingUpdate
+# (maxSurge 1) and the operator exposes no strategy knob for them, so at 3 MCP
+# pods the surge pod would have no eligible node. Preferred spreads them in
+# practice and degrades gracefully.
+mcpScheduling:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: grafana-mcp
 
 # Per-Project memory stack images (the operator stamps these into the native
 # objects it provisions per Project). memoryBaseUrl removed in N4: each Project
