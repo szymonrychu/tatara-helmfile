@@ -37,6 +37,40 @@
 project:
   spec:
     memory:
+      # MEMORY IS OFF ON EVERY PROJECT (2026-08-09).
+      #
+      # Requires tatara-operator >= v2.1.0, which added spec.memory.enabled.
+      # The CRD schema is structural, so on any earlier operator this field is
+      # SILENTLY PRUNED at admission and the disable looks applied while doing
+      # nothing. Do not move this line ahead of the operator pin.
+      #
+      # What the operator does on disable (project_memory_disable.go):
+      #   - deletes the memory API, LightRAG, neo4j and the CNPG Cluster,
+      #     plus the ServiceMonitor/PodMonitor/PrometheusRule (a left-behind
+      #     monitor keeps alerting on a stack that is gone);
+      #   - DELETES the LightRAG PVC. Its data is gone. Owner-approved.
+      #   - RETAINS the CNPG PGDATA + WAL PVCs and the neo4j PVC: every
+      #     ownerReference is stripped (the pg volumes are owned by the CNPG
+      #     Cluster, not the Project, so removing only the Project ref would
+      #     still have destroyed them) and they are labelled
+      #     tatara.dev/retained-for-project. Setting enabled: true again
+      #     re-adopts them by name.
+      #
+      # So this is reversible for the corpus and the graph, and NOT reversible
+      # for LightRAG's index - that gets rebuilt from the corpus on re-enable.
+      #
+      # Agents keep working. Turn admission was already not gated on memory
+      # (operator task_controller.go, decision of 2026-07-26: agents run
+      # degraded rather than being held). Repository ingest short-circuits
+      # cleanly instead of looping every 15s, and the turn-0 prompt gets
+      # MemoryDisabledGuidance - "recall tooling is not available here, work
+      # from the repository" - rather than the degraded guidance, which told
+      # the agent to file a platform incident about it every single turn.
+      enabled: false
+      # The sizes below are inert while enabled is false. They are kept, not
+      # deleted, because CNPG rejects a storage DECREASE and the retained PVCs
+      # must be re-adopted at their existing sizes on any re-enable.
+      #
       # PGDATA volume. 20Gi is the post-2026-07-05 size that mem-tatara has
       # run on since; 10Gi is the size that filled.
       pgStorage: 20Gi

@@ -119,3 +119,15 @@
   and four new ones open, then parked `review-loop-exhausted` one round from
   done. That park reason is NO-RE-ENTRY in the operator, so hitting the cap on
   genuinely improving work is terminal rather than a pause.
+
+- 2026-08-09: memory disabled on all three projects via
+  `values/memory-stack.yaml` `project.spec.memory.enabled: false`. Needs
+  tatara-operator >= v2.1.0; the CRD schema is structural, so on any earlier
+  operator the field is silently pruned at admission and the disable appears
+  applied while doing nothing. LightRAG's PVC is DELETED (owner-approved, its
+  index rebuilds from the corpus). The CNPG PGDATA/WAL and neo4j PVCs are
+  RETAINED with every ownerReference stripped - note the pg volumes are owned
+  by the CNPG Cluster, not the Project, so stripping only the Project
+  reference would still have destroyed them. Re-enabling re-adopts them by
+  name. Agents are unaffected: turn admission has not been gated on memory
+  since 2026-07-26.
