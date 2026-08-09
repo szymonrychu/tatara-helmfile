@@ -43,7 +43,7 @@ project:
       modelByKind:
         clarify: claude-opus-5
         review: claude-opus-5
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v2.0.4
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v2.1.0
       maxTaskTokens: 2000000
       # 400: deck skills run multi-agent research/sim pipelines up to ~3h; 150
       # starved multi-deck tasks. No unlimited exists (0 falls back to the 300
