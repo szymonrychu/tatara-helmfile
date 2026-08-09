@@ -21,6 +21,19 @@ project:
     # path that tears a pod down hard.
     agentPodTTLSeconds: 14400
     maxConcurrentAgents: 5
+    # maxLivePods: the ceiling on simultaneously LIVE Tasks (refined,
+    # under-implementation, awaiting-review) - NOT just conversations. The
+    # operator default is 2, which on a 5-agent project leaves 3 agent slots
+    # that live work can never use, and that is what starves the review queue:
+    # measured 2026-08-09, project-tatara sat at live=2/2 with a single review
+    # running while five PRs waited, and comment-driven unparks were declined
+    # `no-live-room`.
+    #
+    # The operator clamps this to maxConcurrentAgents-1 (api MaxLivePods), so 4
+    # is the largest legal value here and still reserves one slot for
+    # non-conversational work. Raising it above 4 would silently clamp, not
+    # bind.
+    maxLivePods: 4
     # Creation budget (non-terminal Task cap). Set above maxConcurrentAgents so the
     # hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
