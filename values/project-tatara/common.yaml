@@ -20,7 +20,7 @@ project:
     # synthetic fallback), so a longer pod life is safe - it is the turn-timeout
     # path that tears a pod down hard.
     agentPodTTLSeconds: 14400
-    maxConcurrentAgents: 5
+    maxConcurrentAgents: 7
     # maxLivePods: the ceiling on simultaneously LIVE Tasks (refined,
     # under-implementation, awaiting-review) - NOT just conversations. The
     # operator default is 2, which on a 5-agent project leaves 3 agent slots
@@ -33,7 +33,7 @@ project:
     # is the largest legal value here and still reserves one slot for
     # non-conversational work. Raising it above 4 would silently clamp, not
     # bind.
-    maxLivePods: 4
+    maxLivePods: 6
     # Creation budget (non-terminal Task cap). Set above maxConcurrentAgents so the
     # hourly brainstorm always has a creation slot.
     maxOpenTasks: 6

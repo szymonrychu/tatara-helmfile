@@ -22,7 +22,10 @@ project:
     # project-infrastructure run - this project's mandate is one deck at a
     # time, and the point here is to stop starving answered conversations, not
     # to widen concurrency.
-    maxConcurrentAgents: 3
+    maxConcurrentAgents: 5
+    # OWNER DECISION 2026-08-09: explicit 3 (not the maxConcurrentAgents-1=4
+    # clamp, not the operator's unset default of 2).
+    maxLivePods: 3
     maxOpenTasks: 3
     # 4h pod life: the repo's longest Workflow research pipeline runs ~3h in a
     # single turn; the 3600 default TTL-stopped it mid-run.
