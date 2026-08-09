@@ -12,7 +12,26 @@ project:
     # Realistic steady-state (2026-07-04): un-held to full concurrency so both
     # projects do real work and we can observe whether the tiering/effort/cadence
     # improvements slow the subscription burn.
+    # 4h pod life. agentPodTTLSeconds defaults to 3600, which would TTL-stop a
+    # pod an hour in and make the 7200 turn timeout below unreachable. Pod-TTL
+    # expiry is the GRACEFUL path (contract G.7: handoff turn, handoff note,
+    # synthetic fallback), so a longer pod life is safe - it is the turn-timeout
+    # path that tears a pod down hard.
+    agentPodTTLSeconds: 14400
     maxConcurrentAgents: 5
+    # maxLivePods: the ceiling on simultaneously LIVE Tasks (refined,
+    # under-implementation, awaiting-review) - NOT just conversations. The
+    # operator default is 2, which on a 5-agent project leaves 3 agent slots
+    # that live work can never use, and that is what starves the review queue:
+    # measured 2026-08-09, project-tatara sat at live=2/2 with a single review
+    # running while five PRs waited, and comment-driven unparks were declined
+    # `no-live-room`.
+    #
+    # The operator clamps this to maxConcurrentAgents-1 (api MaxLivePods), so 4
+    # is the largest legal value here and still reserves one slot for
+    # non-conversational work. Raising it above 4 would silently clamp, not
+    # bind.
+    maxLivePods: 4
     # Above maxConcurrentAgents so the hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
     # operator#429: default AlertCapacity() is 1, so a single investigating
@@ -33,7 +52,7 @@ project:
       effortByKind:
         clarify: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.3.5
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v2.0.3
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
@@ -42,9 +61,17 @@ project:
       permissionMode: bypassPermissions
       # Pin the agent-skills install (kills the `main` drift; component 5
       # / component 4b). HAND-MANAGED: see the note in
-      # values/project-tatara/common.yaml. Move all three projects together.
-      skillsRef: v1.8.0
-      turnTimeoutSeconds: 2700
+      # values/project-tatara/common.yaml. Move all three projects together;
+      # check_pin_coverage.py's check_agent_pins() refuses a floating or absent value.
+      skillsRef: v2.0.0
+      # 7200s of INACTIVITY, not wall-clock. The operator anchors the deadline
+      # on max(turn-started-at, turn-last-activity-at); wrapper v2.0.2 (#152)
+      # starts the transcript tailer at turn submit rather than at the first
+      # Stop hook, so the activity anchor now advances during a turn and the
+      # window is a true idle timeout. Before that fix the anchor was frozen
+      # and this behaved as a hard cap on the whole turn - which is what killed
+      # mtg-decks#18 mid-work at 60 minutes with nothing pushed.
+      turnTimeoutSeconds: 7200
     # Read-only Grafana incident-response: operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
     # /operator/webhooks/infrastructure/grafana. Secret keys: serviceAccountToken
@@ -122,32 +149,32 @@ repositories:
       defaultBranch: main
       ingestEnabled: true
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "33 8 * * *"
   - name: charts
     spec:
       url: "https://gitlab.com/szymonrychu/charts"
       defaultBranch: main
       ingestEnabled: true
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "50 8 * * *"
   - name: helmfile
     spec:
       url: "https://gitlab.com/szymonrychu/helmfile"
       defaultBranch: main
       ingestEnabled: true
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "7 9 * * *"
   - name: terraform
     spec:
       url: "https://gitlab.com/szymonrychu/terraform"
       defaultBranch: main
       ingestEnabled: true
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "24 9 * * *"
   - name: ansible
     spec:
       url: "https://gitlab.com/szymonrychu/ansible"
       defaultBranch: main
       ingestEnabled: true
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "41 9 * * *"

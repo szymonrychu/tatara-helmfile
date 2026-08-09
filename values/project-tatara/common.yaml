@@ -14,7 +14,26 @@ project:
     # Realistic steady-state (2026-07-04): full concurrency + brainstorm on, to
     # observe whether the tiering/effort/cadence improvements slow subscription
     # burn vs the pre-improvement runaway.
+    # 4h pod life. agentPodTTLSeconds defaults to 3600, which would TTL-stop a
+    # pod an hour in and make the 7200 turn timeout below unreachable. Pod-TTL
+    # expiry is the GRACEFUL path (contract G.7: handoff turn, handoff note,
+    # synthetic fallback), so a longer pod life is safe - it is the turn-timeout
+    # path that tears a pod down hard.
+    agentPodTTLSeconds: 14400
     maxConcurrentAgents: 5
+    # maxLivePods: the ceiling on simultaneously LIVE Tasks (refined,
+    # under-implementation, awaiting-review) - NOT just conversations. The
+    # operator default is 2, which on a 5-agent project leaves 3 agent slots
+    # that live work can never use, and that is what starves the review queue:
+    # measured 2026-08-09, project-tatara sat at live=2/2 with a single review
+    # running while five PRs waited, and comment-driven unparks were declined
+    # `no-live-room`.
+    #
+    # The operator clamps this to maxConcurrentAgents-1 (api MaxLivePods), so 4
+    # is the largest legal value here and still reserves one slot for
+    # non-conversational work. Raising it above 4 would silently clamp, not
+    # bind.
+    maxLivePods: 4
     # Creation budget (non-terminal Task cap). Set above maxConcurrentAgents so the
     # hourly brainstorm always has a creation slot.
     maxOpenTasks: 6
@@ -37,7 +56,7 @@ project:
       effortByKind:
         clarify: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v1.3.5
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v2.0.3
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
@@ -49,9 +68,17 @@ project:
       # the wrapper Dockerfile's TATARA_SKILLS_REF, NOT this value, so this pin
       # overrides the image's baked ref and does not move on its own. Move all
       # three projects together - .github/scripts/check_pin_coverage.py fails
-      # the build if they diverge.
-      skillsRef: v1.8.0
-      turnTimeoutSeconds: 2700
+      # the build if they diverge, and check_agent_pins() there also refuses
+      # this AND the image tag above if either goes floating (main/latest) or absent.
+      skillsRef: v2.0.0
+      # 7200s of INACTIVITY, not wall-clock. The operator anchors the deadline
+      # on max(turn-started-at, turn-last-activity-at); wrapper v2.0.2 (#152)
+      # starts the transcript tailer at turn submit rather than at the first
+      # Stop hook, so the activity anchor now advances during a turn and the
+      # window is a true idle timeout. Before that fix the anchor was frozen
+      # and this behaved as a hard cap on the whole turn - which is what killed
+      # mtg-decks#18 mid-work at 60 minutes with nothing pushed.
+      turnTimeoutSeconds: 7200
     # Read-only Grafana incident-response: the operator provisions a per-project
     # grafana-mcp (Viewer SA token) + an alert-webhook receiver at
     # /operator/webhooks/tatara/grafana. Secret keys: serviceAccountToken (mounted
@@ -163,52 +190,50 @@ repositories:
       url: "https://github.com/szymonrychu/tatara-memory"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "17 6 * * *"
   - name: tatara-cli
     spec:
       url: "https://github.com/szymonrychu/tatara-cli"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "34 6 * * *"
   - name: tatara-operator
     spec:
       url: "https://github.com/szymonrychu/tatara-operator"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
-  - name: tatara-chat
-    spec:
-      url: "https://github.com/szymonrychu/tatara-chat"
-      defaultBranch: main
-      semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "51 6 * * *"
+  # tatara-chat dropped 2026-08-08 (#280): the release is `installed: false`
+  # (decommissioned, accepted data loss), so enrolling it bought a daily
+  # LLM-semantic re-ingest of a repo nothing reads. Re-add if it is ever
+  # reinstalled.
   - name: tatara-memory-repo-ingester
     spec:
       url: "https://github.com/szymonrychu/tatara-memory-repo-ingester"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "8 7 * * *"
   - name: tatara-claude-code-wrapper
     spec:
       url: "https://github.com/szymonrychu/tatara-claude-code-wrapper"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "25 7 * * *"
   - name: tatara-observability
     spec:
       url: "https://github.com/szymonrychu/tatara-observability"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "42 7 * * *"
   - name: tatara-documentation
     spec:
       url: "https://github.com/szymonrychu/tatara-documentation"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "59 7 * * *"
   - name: tatara-agent-skills
     spec:
       url: "https://github.com/szymonrychu/tatara-agent-skills"
       defaultBranch: main
       semanticIngest: true
-      reingestSchedule: "0 6 * * *"
+      reingestSchedule: "16 8 * * *"
