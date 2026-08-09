@@ -5,7 +5,24 @@ project:
   spec:
     scmSecretRef: tatara-scm
     triggerLabel: mtg
-    maxConcurrentAgents: 2
+    # 3, not 2. maxLivePods is left unset, so the operator clamps the live
+    # ceiling to maxConcurrentAgents-1 (api/v1alpha1.MaxLivePods) - at 2 that
+    # is a ceiling of ONE, and mtg was the only project where it bound.
+    #
+    # Measured 2026-08-09: one implement Task held the single slot for over an
+    # hour while two others, whose agents had asked real questions and whose
+    # human answers were already queued as pendingEvents, were refused re-entry
+    # every 30s with decline=no-live-room. The reply is the lowest-priority
+    # thing in the project under a ceiling of 1, because the ceiling is only
+    # enforced on the unpark path and not on the mint path - new work walks
+    # past it while an answered conversation cannot get back in.
+    #
+    # 3 gives a ceiling of 2: one long-running deck task plus one resuming
+    # conversation. Deliberately not raised to the 5 that project-tatara and
+    # project-infrastructure run - this project's mandate is one deck at a
+    # time, and the point here is to stop starving answered conversations, not
+    # to widen concurrency.
+    maxConcurrentAgents: 3
     maxOpenTasks: 3
     # 4h pod life: the repo's longest Workflow research pipeline runs ~3h in a
     # single turn; the 3600 default TTL-stopped it mid-run.

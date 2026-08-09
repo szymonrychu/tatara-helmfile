@@ -142,3 +142,14 @@
   declined `no-live-room`. The operator clamps to maxConcurrentAgents-1, so 4
   is the largest value that binds; anything higher silently clamps. mtg is
   left alone: at maxConcurrentAgents=2 its effective ceiling is already 1.
+
+- 2026-08-09: project-mtg `maxConcurrentAgents: 2 -> 3`. maxLivePods is unset
+  here, so the operator clamps the live ceiling to maxConcurrentAgents-1, and
+  at 2 that was a ceiling of ONE - mtg was the only project where the clamp
+  bound. One implement Task held the single slot for over an hour while two
+  others, whose human answers were already queued as pendingEvents, were
+  refused re-entry every 30s with decline=no-live-room. The asymmetry is the
+  real teeth: LiveHasRoom gates the unpark path but has no caller on the
+  mint/admission path, so new work walks past the ceiling while an answered
+  conversation cannot get back in. Not raised to 5 like the other projects -
+  the mandate here is one deck at a time.
