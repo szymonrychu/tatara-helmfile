@@ -52,6 +52,22 @@
 # node-controller TAINT EVICTION, which bypasses PodDisruptionBudgets entirely
 # (issue #256 Q11). A PDB is the control for the *graceful* case; making the
 # reboots graceful is the control for the other, and lives outside this repo.
+#
+# DRAIN BEHAVIOR CHANGE (control-plane scheduling, this branch): the manager
+# Deployment now carries a REQUIRED hostname podAntiAffinity across its 3
+# replicas plus a REQUIRED control-plane nodeAffinity, and this cluster has
+# exactly 3 control-plane-eligible nodes. That combination means there is
+# never a fourth eligible node for the evicted pod to land on. Previously an
+# evicted manager could relocate to a worker (worker-jtw3f33 or nas-d0w363i);
+# now `kubectl drain` of any control-plane node leaves the evicted pod
+# Pending until that same node is uncordoned. The Pending pod still counts
+# against this PDB's maxUnavailable: 1, so a second concurrent control-plane
+# drain is refused for as long as the first node stays cordoned - drains no
+# longer serialise "one pod moves and drain completes"; they serialise "one
+# node at a time, uncordon before draining the next". Worker-node drains are
+# unaffected since no manager pods are scheduled there. Operate control-plane
+# drains one node at a time: drain, do the maintenance, uncordon, only then
+# drain the next - running the operator at 2/3 for the duration of each.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
