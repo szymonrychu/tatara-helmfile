@@ -131,3 +131,13 @@
   reference would still have destroyed them. Re-enabling re-adopts them by
   name. Agents are unaffected: turn admission has not been gated on memory
   since 2026-07-26.
+
+- 2026-08-09: `maxLivePods: 4` on project-tatara and project-infrastructure
+  (operator default is 2). maxLivePods caps ALL simultaneously live Tasks -
+  refined, under-implementation, awaiting-review - not just conversations, so
+  on a 5-agent project the default left 3 agent slots that live work could
+  never reach. Measured that day: project-tatara sat at live=2/2 with one
+  review running while five PRs waited, and comment-driven unparks were
+  declined `no-live-room`. The operator clamps to maxConcurrentAgents-1, so 4
+  is the largest value that binds; anything higher silently clamps. mtg is
+  left alone: at maxConcurrentAgents=2 its effective ceiling is already 1.
