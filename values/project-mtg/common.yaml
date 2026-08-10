@@ -173,9 +173,19 @@ project:
       # Per-PROJECT build cache (Go build + module, pip, npm, mise downloads).
       # Shared across Tasks on purpose: those caches are content-addressed, so a
       # per-Task cache would be cold on every new Task, which is most of them.
-      # 20Gi for mtg, which is python and node rather than a Go -race tree.
+      #
+      # 10Gi, sized off what mtg actually stores rather than the chart default.
+      # The go-build and go-mod subPaths are dead here - mtg has no Go, and the
+      # measured 50-75s per build cycle that motivated the cache is a Go number
+      # that does not transfer. What mtg really caches is the pip wheel set that
+      # `mise run setup` pulls (matplotlib, the pinned numpy 2.5.1, pytest and
+      # transitives - roughly 50-60 MB), plus a trivial npm entry. mise
+      # downloads are near-zero because the wrapper image already bakes the
+      # python 3.13 the repo asks for. Note the venv itself lives in the repo at
+      # .venv, so it rides the per-Task WORKSPACE volume; this cache only buys
+      # cross-Task reuse of the downloads.
       cacheEnabled: true
-      cacheSize: 20Gi
+      cacheSize: 10Gi
     memory:
       # Volume sizing (pgStorage / pgWalStorage / neo4jStorage) is shared across
       # every project in values/memory-stack.yaml - do not re-declare it here.

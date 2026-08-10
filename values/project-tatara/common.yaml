@@ -119,6 +119,21 @@ project:
     # already provisioned and mounts independently of the workspace volume.
     workspace:
       enabled: false
+      # The cache is declared NOW even though the workspace is off, so stage C
+      # creates it at the right size instead of falling back to the 50Gi chart
+      # default. Note the cache only exists while the workspace is enabled -
+      # task_workspace.go maintains it under `WorkspaceEnabled() &&
+      # WorkspaceCacheEnabled()`, and pod mounting is gated the same way - so
+      # this has no effect until stage C flips enabled to true.
+      # 20Gi rather than 10Gi, and deliberately: this is the one project whose
+      # cache is a Go build tree. Measured on tatara-operator ALONE, GOCACHE is
+      # ~2.4GB and GOMODCACHE ~630MB, and this project clones about ten repos
+      # that share the module cache. GOCACHE also grows until Go's own trimming
+      # evicts entries unused for five days, so the steady state is well above
+      # the snapshot. 10Gi would likely be tight; revisit once there is real
+      # usage data rather than guessing further.
+      cacheEnabled: true
+      cacheSize: 20Gi
     memory:
       # Volume sizing (pgStorage / pgWalStorage / neo4jStorage) is shared across
       # every project in values/memory-stack.yaml - do not re-declare it here.
