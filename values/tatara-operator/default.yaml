@@ -92,6 +92,16 @@ ingressRewriteTarget: "/$2"
 # if the flag is true without a uid). Keep agent pods OFF the untainted control-plane
 # nodes by pinning to the nas worker (label nas=true).
 agentRunAsNonRoot: true
+
+# Operator-wide kill switch for the per-Task workspace PVC (operator 2.9.0).
+# Chart default is false so the CRD could land before any PVC was created;
+# flipped on here now that operator 2.9.0 is live and the CRD carries the
+# workspace fields. It is ANDed with each Project's own spec.workspace.enabled,
+# so this turns the feature ON for projects that opt in and remains the single
+# lever to switch it off fleet-wide if a rollout goes wrong. Rolling it back is
+# lossless for caches: only a project's own enabled/cacheEnabled retires one.
+agentWorkspacePvcEnabled: true
+
 agentRunAsUser: 10001
 agentScheduling:
   nodeSelector:
