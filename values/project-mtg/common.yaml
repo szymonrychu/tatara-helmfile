@@ -48,30 +48,22 @@ project:
         review: claude-opus-5
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.0.0
       maxTaskTokens: 2000000
-      # 400: deck skills run multi-agent research/sim pipelines up to ~3h; 150
-      # starved multi-deck tasks. No unlimited exists (0 falls back to the 300
-      # default), so this is the effective "do not starve" ceiling.
-      maxTurnsPerTask: 400
-      # 6, up from the operator default of 3. Deck review is genuinely
-      # iterative: mtg-decks#18 reached round 3 with all eight round-1 findings
-      # verified fixed and four new ones open, and parked review-loop-exhausted
-      # one round from done. review-loop-exhausted is a NO-RE-ENTRY park reason
-      # (operator internal/controller/resume.go), so hitting the cap on
-      # improving work is terminal, not a pause.
-      maxReviewRounds: 6
       permissionMode: bypassPermissions
       # HAND-MANAGED: see the note in values/project-tatara/common.yaml. Move
       # all three projects together; check_pin_coverage.py's check_agent_pins()
       # refuses a floating or absent value here or on the image tag above.
       skillsRef: v2.0.0
-      # 7200s of INACTIVITY, not wall-clock. The operator anchors the deadline
-      # on max(turn-started-at, turn-last-activity-at); wrapper v2.0.2 (#152)
-      # starts the transcript tailer at turn submit rather than at the first
-      # Stop hook, so the activity anchor now advances during a turn and the
-      # window is a true idle timeout. Before that fix the anchor was frozen
-      # and this behaved as a hard cap on the whole turn - which is what killed
-      # mtg-decks#18 mid-work at 60 minutes with nothing pushed.
-      turnTimeoutSeconds: 7200
+      # 3600s of INACTIVITY is now the STALL PROBE TRIGGER, not a kill
+      # deadline (post-O2). The operator anchors on max(turn-started-at,
+      # turn-last-activity-at) including subagent activity, and on expiry
+      # sends `POST /v1/probe` rather than failing the turn: an answered
+      # probe clears the annotations and the turn continues unbounded.
+      # Escalation to interrupt+stop only fires after stallProbeMaxAttempts
+      # unanswered probes, each waited out over stallProbeGraceSeconds.
+      turnTimeoutSeconds: 3600
+      # O1/O2 CRD fields (defaults 300/2) made explicit.
+      stallProbeGraceSeconds: 300
+      stallProbeMaxAttempts: 2
       # mtg-decks ships its own workflow skills (no profiles: frontmatter ->
       # wildcard -> installed for every agent kind). Cloned with the project's
       # scmSecretRef token via the wrapper's global GIT_TOKEN credential helper.
