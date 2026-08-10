@@ -179,9 +179,10 @@ project:
           # Demand-driven since operator v1.35: NO schedule. See the operator's
           # scm.cron.brainstorm docs; enabled still gates the refill pass.
           enabled: true
-          # Backlog TARGET, not a cap. Only one repo in this project and the
-          # mandate is one deck at a time, so keep it low.
-          targetOpenProposals: 2
+          # Backlog TARGET, not a cap. The controller refills toward it and
+          # never closes a proposal to reconcile downward, so this is the
+          # depth of the go/nogo queue the maintainer sees at once.
+          targetOpenProposals: 5
           # Auto-close bot proposals with no human engagement after 14 days.
           staleProposalDays: 14
           sources:
