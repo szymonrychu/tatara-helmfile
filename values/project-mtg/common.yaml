@@ -151,6 +151,31 @@ project:
         - name: spellslinger
           url: http://spellslinger-mcp-http.spellslinger-development.svc.cluster.local:8080/mcp
           type: http
+    # PERSISTENT AGENT WORKSPACE (operator 2.9.0). mtg goes first because it is
+    # the smallest surface: 3 repos, a measured 215 MiB tree.
+    #
+    # This is here for STORAGE GUARANTEES, not speed. Without it /workspace is
+    # the container writable layer - volatile (the 2026-08-10 OOMKill of
+    # imp-mtg-mtg-decks-i37 took an unpushed commit with it) and unbounded, with
+    # no guarantee a node has room for every repo this project clones and
+    # builds. It is measurably SLOWER to boot than a fresh shallow clone
+    # (measured p50 5.1s resumed against 2.4s for depth-1) and that is an
+    # accepted price. Do not disable it to chase boot latency.
+    #
+    # storageClass is PINNED rather than left to the cluster default: the
+    # workspace requires ReadWriteMany, and the operator force-deletes pods with
+    # a zero grace period, so an RBD class would stall every respawn in
+    # Multi-Attach until the old attachment released.
+    workspace:
+      enabled: true
+      storageClass: rook-ceph-rwx
+      size: 10Gi
+      # Per-PROJECT build cache (Go build + module, pip, npm, mise downloads).
+      # Shared across Tasks on purpose: those caches are content-addressed, so a
+      # per-Task cache would be cold on every new Task, which is most of them.
+      # 20Gi for mtg, which is python and node rather than a Go -race tree.
+      cacheEnabled: true
+      cacheSize: 20Gi
     memory:
       # Volume sizing (pgStorage / pgWalStorage / neo4jStorage) is shared across
       # every project in values/memory-stack.yaml - do not re-declare it here.
