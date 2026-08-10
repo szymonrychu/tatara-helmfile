@@ -203,12 +203,13 @@ project:
       owner: szymonrychu
       botLogin: szymonrychu-bot
       botEmail: 143486966+szymonrychu-bot@users.noreply.github.com
-      # kelong is a maintainer only; deliberately NOT added to reporterLogins.
-      # IsAllowedReporter (api/v1alpha1/logins.go) already trusts every
-      # maintainer, so a second entry would be redundant.
+      # kelong and mtg-bientech are maintainers only; deliberately NOT added to
+      # reporterLogins. IsAllowedReporter (api/v1alpha1/logins.go) already
+      # trusts every maintainer, so a second entry would be redundant.
       maintainerLogins:
         - szymonrychu
         - kelong
+        - mtg-bientech
       reporterLogins:
         - szymonrychu
       mergePolicy: afterApproval
