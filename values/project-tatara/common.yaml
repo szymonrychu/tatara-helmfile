@@ -99,6 +99,26 @@ project:
     documentation:
       enabled: true
       repo: "https://github.com/szymonrychu/tatara-documentation"
+    # PERSISTENT AGENT WORKSPACE - EXPLICITLY OFF UNTIL STAGE C.
+    #
+    # This has to be explicit. WorkspaceSpec.Enabled is a tri-state pointer and
+    # an ABSENT workspace block resolves to ENABLED (nil means true, so a
+    # Project written before the field existed keeps working). So omitting this
+    # does NOT opt out - once agentWorkspacePvcEnabled went true operator-wide
+    # for mtg's stage B, this project was silently enabled too. Setting it false
+    # is the only way to stay on the ephemeral layer.
+    #
+    # Stage C flips this to true, one project at a time, after mtg has proven
+    # the CephFS permissions path: a fresh subvolume is root:root 0755 and the
+    # agent runs as uid 10001, so it depends on the chart's agentFsGroup 10001
+    # plus fsGroupChangePolicy OnRootMismatch. If that is wrong every pod
+    # boot-crash-loops to the 24h residency cap, which is precisely why this
+    # rollout is staged rather than fleet-wide.
+    #
+    # cacheEnabled is left alone deliberately: the per-project build cache is
+    # already provisioned and mounts independently of the workspace volume.
+    workspace:
+      enabled: false
     memory:
       # Volume sizing (pgStorage / pgWalStorage / neo4jStorage) is shared across
       # every project in values/memory-stack.yaml - do not re-declare it here.
