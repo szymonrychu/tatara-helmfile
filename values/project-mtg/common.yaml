@@ -52,7 +52,7 @@ project:
       # HAND-MANAGED: see the note in values/project-tatara/common.yaml. Move
       # all three projects together; check_pin_coverage.py's check_agent_pins()
       # refuses a floating or absent value here or on the image tag above.
-      skillsRef: v2.0.0
+      skillsRef: v2.1.1
       # 3600s of INACTIVITY is now the STALL PROBE TRIGGER, not a kill
       # deadline (post-O2). The operator anchors on max(turn-started-at,
       # turn-last-activity-at) including subagent activity, and on expiry
@@ -73,7 +73,7 @@ project:
           ref: main
           subdir: .claude/skills
       # Deck work MUST go through the repo's own skills, never freeform. The "*"
-      # text reaches every kind; the review text is additive on top of it.
+      # text reaches every kind; a per-kind block is additive on top of it.
       promptAppendByKind:
         "*": |
           All deck work in this repo MUST go through the repo's own workflow
@@ -140,6 +140,44 @@ project:
           category by category, what you considered and why each one yielded
           nothing. A skip that does not account for all four categories is
           not a valid skip.
+        upgrade: |
+          THE UPGRADE UNIT ON THIS PROJECT IS ONE DECK, never a dependency pin.
+          mtg-decks carries no manifests, no lockfiles and no image tags, which
+          is why the project runs `engine: none` - there is nothing here for a
+          dependency engine to scan and nothing to bump. Wherever the workflow
+          talks about a dependency, a version or a hop, read deck, metagame and
+          card change.
+
+          A deck is STALE by the repo's own drift standard - `scripts/meta_state.py
+          diff` - and by nothing else. Directory mtime is NOT the standard: a
+          deck untouched for a month whose archetype shares have not moved is
+          current, and a deck touched yesterday whose shares moved is stale. Run
+          the diff FIRST and let it choose the deck. If it reports no drift
+          anywhere, call `submit_outcome` with `action="skip"` and quote what the
+          diff actually said; a skip with no measurement in it is not a valid
+          skip.
+
+          Take exactly ONE deck per Task. Call `task_context` with `index=true`
+          before you claim anything and skip any deck a live sibling Task already
+          names in its title, then name the deck you took in your own pull
+          request title so the next sibling can do the same. Nothing dedupes this
+          for you - the operator does not know which deck you will pick.
+
+          Route the whole refresh through the repo's own workflow skills exactly
+          as the `*` block requires: never freeform, never a hand-edited
+          decklist. `optimize-deck` is the entry point (it dispatches to
+          `research-protocol`) against `decks/<deck>/decklist.txt`, with
+          `meta-analysis` for the archetype shares that moved, `set-impact` when
+          a new set is what changed, `ban-watch` for a banning or unbanning, and
+          `sideboard-guide` when the matchup spread is what moved. Do NOT reach
+          for `forge-deck` or `choose-archetype` - this is a refresh of a deck
+          that already exists, not a new brew.
+
+          "Read the release notes before you propose the hop" maps here to: read
+          the actual set release notes, ban-list announcements and tournament
+          results you are reacting to, and cite them in the pull request body. A
+          refresh whose only justification is elapsed time is one you should
+          decline instead.
         review: |
           As reviewer, be critical but fair. A multi-level review is expected:
           design, decklist choices, simulation evidence, and page structure.
@@ -198,6 +236,22 @@ project:
       # standby-resync WAL bursts that sized the shared volumes - it inherits
       # them anyway so no stack is left on an unchosen default.
       pgInstances: 1
+    # Policy for the scm.cron.upgrade agent below. Top-level spec field, NOT part
+    # of the cron block: the cron decides WHEN, this decides what may be proposed.
+    #
+    # engine none, not renovate: mtg-decks carries no manifests, no lockfiles and
+    # no image tags, so a dependency engine has nothing to read and would report
+    # an empty candidate set forever. none puts the agent in charge of
+    # enumerating its own units, which here are decks - see
+    # agent.promptAppendByKind.upgrade above for what that means concretely.
+    #
+    # majorStrategy is stated even though nothing here has a semver hop, so the
+    # resolved policy is readable off the CR instead of coming from a code
+    # default. minimumReleaseAge is omitted on purpose: there are no releases to
+    # age, so any value would be a fiction.
+    upgradePolicy:
+      engine: none
+      majorStrategy: nextHopOnly
     scm:
       provider: github
       owner: szymonrychu
@@ -242,6 +296,22 @@ project:
         refine:
           schedule: 0 12 * * *
           closedLookbackDays: 30
+        # Weekly deck refresh, Tuesday 07:00 UTC = 09:00 Europe/Warsaw (CEST).
+        # UTC for the reason spelled out on refine above. Tuesday because the
+        # paper-format ban announcements and the weekend result dumps this
+        # project reacts to are both settled by Monday night.
+        #
+        # Hour 7 is clear of everything else here: issueScan fires on the */4
+        # hours and the mtg-decks reingest at 09:58, so a refresh never races the
+        # ingest that feeds its own code-graph reads.
+        #
+        # maxOpenUpgrades is EXPLICIT rather than the operator's default: a
+        # kubebuilder default is applied on WRITE and never retroactively, so it
+        # would never reach this already-existing Project. 1 matches this
+        # project's one-deck-at-a-time mandate (see maxLivePods above).
+        upgrade:
+          schedule: 0 7 * * 2
+          maxOpenUpgrades: 1
 
 repositories:
   - name: mtg-decks

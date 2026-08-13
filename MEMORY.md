@@ -169,3 +169,19 @@
   bumps. The PDB in raw/operator-pdb.tatara-operator.pre.yaml needed no
   change: a rolling update deletes pods directly and never goes through the
   eviction API a PDB gates, and the budget is maxUnavailable-shaped anyway.
+
+- 2026-08-14 (upgrade agent enrollment) `charts/tatara-project/templates/project.yaml`
+  renders `.Values.project.spec` through a bare `toYaml` and validates nothing,
+  and the Project CRD is a structural schema with NO
+  `x-kubernetes-preserve-unknown-fields`, so a misspelled enrollment field is
+  SILENTLY PRUNED by the API server: green apply, CR without the block, cron
+  that never fires, nothing red anywhere. The check that actually catches it is
+  `kubectl apply --dry-run=server -o yaml` on the templated Projects and reading
+  the returned spec back - `helmfile diff` cannot, because it compares the
+  rendered manifest against helm's stored manifest, not against what the API
+  server would keep. Done for `scm.cron.upgrade` (`schedule`, `maxOpenUpgrades`
+  - there is no `enabled` field; an empty schedule is the off switch) and the
+  top-level `spec.upgradePolicy` (`engine`, `majorStrategy`,
+  `minimumReleaseAge` - NOT under `scm`). `maxOpenUpgrades` is written
+  explicitly in both enabling projects because a kubebuilder default applies on
+  WRITE only and never reaches an existing CR.

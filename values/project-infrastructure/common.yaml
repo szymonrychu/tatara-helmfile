@@ -62,7 +62,7 @@ project:
       # / component 4b). HAND-MANAGED: see the note in
       # values/project-tatara/common.yaml. Move all three projects together;
       # check_pin_coverage.py's check_agent_pins() refuses a floating or absent value.
-      skillsRef: v2.0.0
+      skillsRef: v2.1.1
       # 3600s of INACTIVITY is now the STALL PROBE TRIGGER, not a kill
       # deadline (post-O2). The operator anchors on max(turn-started-at,
       # turn-last-activity-at) including subagent activity, and on expiry
@@ -119,6 +119,29 @@ project:
       # it silently ran on a 2Gi WAL volume and repeated the incidents already
       # fixed on project-tatara (#237, #263). Instance count stays per-project.
       pgInstances: 3
+    # Policy for the scm.cron.upgrade agent below. It is a top-level spec field,
+    # NOT part of the cron block: the cron decides WHEN a Task is minted, this
+    # decides what that Task is allowed to propose.
+    #
+    # Bleeding edge, deliberately. minimumReleaseAge 0 at every level means a
+    # version is a candidate the moment it publishes, so a broken release does
+    # reach the cluster (grafana v13.0.0 shipped a dashboard-losing migration and
+    # was pulled; the fix was v13.0.1). Accepted for this project because it is
+    # where an upgrade lands first and where a rollback is cheapest; these fields
+    # exist so it can be made conservative without an operator change.
+    #
+    # renovate runs read-only in the pod and its report is a HINT - the agent
+    # still reads the release notes and decides. nextHopOnly walks a multi-hop
+    # major chain one deployed Task at a time (the repo's current pin is the
+    # cursor), so a bad hop stays bisectable instead of arriving as one
+    # unreviewable jump.
+    upgradePolicy:
+      engine: renovate
+      majorStrategy: nextHopOnly
+      minimumReleaseAge:
+        major: 0
+        minor: 0
+        patch: 0
     scm:
       provider: gitlab
       owner: szymonrychu
@@ -173,6 +196,24 @@ project:
         refine:
           schedule: 0 6 * * *
           closedLookbackDays: 30
+        # Dependency-upgrade agent. A tick mints AT MOST ONE upgrade Task and
+        # only while the live lanes are under maxOpenUpgrades, so throughput is
+        # the cron FREQUENCY, not a fan-out: six fires a day, at most two in
+        # flight. Every-4h rather than daily because minimumReleaseAge is 0
+        # below - a bleeding-edge project that only looks once a day spends most
+        # of its life on a release it already decided to take.
+        #
+        # Minute 58 continues the deterministic 17-minute phase stagger the
+        # per-repo reingestSchedules below already use (33 8, 50 8, 7 9, 24 9,
+        # 41 9 -> 58), so an upgrade tick never lands on a reingest run, and it
+        # keeps clear of minute 0 where issueScan fires on the same */4 hours.
+        #
+        # maxOpenUpgrades is EXPLICIT, never left to the operator's default of 1:
+        # a kubebuilder default is applied on WRITE and never retroactively, so
+        # changing it upstream would never reach this already-existing Project.
+        upgrade:
+          schedule: 58 */4 * * *
+          maxOpenUpgrades: 2
 
 repositories:
   - name: containers
