@@ -153,9 +153,11 @@ project:
           deck untouched for a month whose archetype shares have not moved is
           current, and a deck touched yesterday whose shares moved is stale. Run
           the diff FIRST and let it choose the deck. If it reports no drift
-          anywhere, call `submit_outcome` with `action="skip"` and quote what the
-          diff actually said; a skip with no measurement in it is not a valid
-          skip.
+          anywhere, call `submit_outcome` with `action="declined"` and a
+          `decline_reason` quoting what the diff actually said. Note the
+          vocabulary: this kind has NO `skip` action (that is brainstorm's),
+          only `submitted` and `declined`. Declining a quiet week is a correct
+          and expected answer, but a decline with no measurement in it is not.
 
           Take exactly ONE deck per Task. Call `task_context` with `index=true`
           before you claim anything and skip any deck a live sibling Task already
