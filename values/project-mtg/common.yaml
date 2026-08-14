@@ -148,22 +148,36 @@ project:
           talks about a dependency, a version or a hop, read deck, metagame and
           card change.
 
+          EVERY deck gets a refresh pass every week, not one deck per week. The
+          cron fires once per deck on Tuesday morning and each Task takes ONE
+          deck, so across the morning the whole repo is covered. Your job is to
+          take a deck nobody else has taken yet - not to decide which single
+          deck most deserves attention.
+
+          Claim before you work. Call `task_context` with `index=true` first,
+          read the merge request titles of the live sibling `upgrade` Tasks, and
+          take a deck none of them names. Then name the deck you took in your
+          OWN merge request title, early, so the next sibling can see it.
+          Nothing dedupes this for you: the operator does not know what a deck
+          is, and a sibling that has not opened its merge request yet is
+          invisible to you. If you genuinely cannot tell what is claimed, prefer
+          the deck with the oldest refresh in `git log` over guessing.
+
           A deck is STALE by the repo's own drift standard - `scripts/meta_state.py
           diff` - and by nothing else. Directory mtime is NOT the standard: a
           deck untouched for a month whose archetype shares have not moved is
           current, and a deck touched yesterday whose shares moved is stale. Run
-          the diff FIRST and let it choose the deck. If it reports no drift
-          anywhere, call `submit_outcome` with `action="declined"` and a
-          `decline_reason` quoting what the diff actually said. Note the
-          vocabulary: this kind has NO `skip` action (that is brainstorm's),
-          only `submitted` and `declined`. Declining a quiet week is a correct
-          and expected answer, but a decline with no measurement in it is not.
+          the diff for the deck you claimed and let it decide what the refresh
+          is, up to and including "the decklist holds and only the boarding plan
+          moves" - that is a real result, not a non-result.
 
-          Take exactly ONE deck per Task. Call `task_context` with `index=true`
-          before you claim anything and skip any deck a live sibling Task already
-          names in its title, then name the deck you took in your own pull
-          request title so the next sibling can do the same. Nothing dedupes this
-          for you - the operator does not know which deck you will pick.
+          If your claimed deck has not drifted, or every deck is already claimed,
+          call `submit_outcome` with `action="declined"` and a `decline_reason`
+          quoting what the diff actually said or naming the sibling that holds
+          the deck. Note the vocabulary: this kind has NO `skip` action (that is
+          brainstorm's), only `submitted` and `declined`. A quiet week is three
+          declines and that is the correct outcome, but a decline with no
+          measurement in it is not.
 
           Route the whole refresh through the repo's own workflow skills exactly
           as the `*` block requires: never freeform, never a hand-edited
@@ -307,13 +321,38 @@ project:
         # hours and the mtg-decks reingest at 09:58, so a refresh never races the
         # ingest that feeds its own code-graph reads.
         #
+        # EVERY deck gets a refresh pass each week, not one deck per week. The
+        # repo carries three (burn-mono-red, living-end, prison-tron), so the
+        # cron fires three times on Tuesday morning and each tick mints one
+        # Task that claims one not-yet-claimed deck. There is no operator-side
+        # fan-out and none is needed: the tick count IS the fan-out, and the
+        # operator never has to know how many decks exist or what they are
+        # called. Add a fourth deck and add a fourth hour here.
+        #
+        # An hour apart, deliberately. Sibling dedup is agent-side and works by
+        # reading live sibling Tasks' merge request titles, so a sibling that
+        # has not opened its MR yet is INVISIBLE and two ticks could claim the
+        # same deck. An hour is comfortably longer than a refresh takes to
+        # reach its MR (the 2026-08-13 living-end pass took three pod runs),
+        # which is what keeps the claims distinct. Do not tighten this to
+        # minutes without giving the operator a real fan-out primitive.
+        #
+        # A week where nothing drifted is a week of three declines, and that is
+        # the correct outcome, not a failure - the prompt requires the drift
+        # measurement in the decline reason.
+        #
+        # Hour 7 is clear of everything else here: issueScan fires on the */4
+        # hours and the mtg-decks reingest at 09:58, so a refresh never races
+        # the ingest that feeds its own code-graph reads. Hours 8 and 9 keep
+        # that property.
+        #
         # maxOpenUpgrades is EXPLICIT rather than the operator's default: a
-        # kubebuilder default is applied on WRITE and never retroactively, so it
-        # would never reach this already-existing Project. 1 matches this
-        # project's one-deck-at-a-time mandate (see maxLivePods above).
+        # kubebuilder default is applied on WRITE and never retroactively, so
+        # it would never reach this already-existing Project. 3 is one lane per
+        # deck, so a slow refresh never starves the next tick's claim.
         upgrade:
-          schedule: 0 7 * * 2
-          maxOpenUpgrades: 1
+          schedule: 0 7,8,9 * * 2
+          maxOpenUpgrades: 3
 
 repositories:
   - name: mtg-decks
