@@ -142,6 +142,33 @@ project:
         major: 0
         minor: 0
         patch: 0
+      # ADOPTION. An open merge request whose head branch starts with this
+      # prefix, AND whose author is botLogin, is taken over into its own
+      # `upgrade` Task instead of the review-only Task it would otherwise mint.
+      # The Task enters at awaiting-review: the review agent approves (and the
+      # operator merges) or requests changes, which routes it to the upgrade
+      # agent to push complementary commits onto Renovate's own branch.
+      #
+      # THIS IS DORMANT UNTIL RENOVATE'S TOKEN MOVES TO szymonrychu-bot.
+      # Adoption needs BOTH conditions. Renovate authors as szymonrychu today,
+      # so arming the prefix on its own changes nothing - a Renovate merge
+      # request still mints a review Task exactly as it does now. That is
+      # deliberate: it lets the config land and be verified against the live CR
+      # ahead of the cutover, so the token swap is the only moving part on the
+      # day.
+      #
+      # The author half is not belt-and-braces. Without it a HUMAN could open a
+      # branch named renovate/anything and have the platform adopt and merge it.
+      # It is also what lets the operator skip the ownership flip at mint:
+      # ownershipForAuthor already classifies a botLogin-authored merge request
+      # as tatara-owned. Weaken one and the other breaks.
+      adoptBranchPrefix: renovate/
+      # Additional authors treated as an upgrade engine, for adoption and for
+      # head-drift attribution. EMPTY ON PURPOSE: Renovate will author as
+      # botLogin, which is already covered. An entry here also widens
+      # ownershipForAuthor, i.e. it grants merge permission, so it is not the
+      # place to allowlist something merely convenient.
+      upgradeEngineLogins: []
     scm:
       provider: gitlab
       owner: szymonrychu
