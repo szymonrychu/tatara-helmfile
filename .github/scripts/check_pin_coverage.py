@@ -67,7 +67,7 @@ SKILLS_REF_RE = re.compile(r"^\s*skillsRef: (\S+)$", re.MULTILINE)
 
 # The producer's half of that contract, kept here so the test above can run it.
 # Must stay byte-identical (modulo the JSON/YAML escaping of the workflow file)
-# with the `pins:` array of the `bump tatara-helmfile skillsRef` step in
+# with the `pins:` array of the `Bump tatara-helmfile skillsRef` step in
 # tatara-agent-skills .github/workflows/release.yml.
 SKILLS_PIN_PATTERN = r"^(\s*skillsRef: ).*$"
 SKILLS_PIN_VALUE_TEMPLATE = r"\1{{version}}"

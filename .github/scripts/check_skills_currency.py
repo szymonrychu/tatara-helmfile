@@ -101,9 +101,14 @@ def evaluate(pins_by_project, tags, max_lag=MAX_LAG):
             "nothing to compare against, which is a broken check, not a clean fleet."
         ]
     if not pins_by_project:
+        # NOT "present but unreadable" - read_pins maps that to None and the
+        # per-project branch below reports it. This fires only when the glob
+        # itself found nothing, i.e. the values tree moved or this check ran
+        # rooted somewhere that is not the repo.
         return [
-            "no values/project-*/common.yaml carried a readable skillsRef; "
-            "nothing was checked."
+            "the values/project-*/common.yaml glob matched no files at all, so "
+            "nothing was checked. Either the values tree moved or this check is "
+            "rooted outside the repo."
         ]
 
     newest = tags[-1]
@@ -128,7 +133,10 @@ def evaluate(pins_by_project, tags, max_lag=MAX_LAG):
             problems.append(
                 f"values/{project}/common.yaml pins skillsRef={pin}, {lag} published "
                 f"tags behind {newest}. A lag over {max_lag} is not a deploy train in "
-                f"flight: the bump hop in szymonrychu/tatara-agent-skills "
+                f"flight. Check the open cd/deploy-train PR FIRST: the hop writes the "
+                f"pin onto that branch, so a train parked on an unrelated component's "
+                f"red pin strands this one while the hop works perfectly. If no train "
+                f"carries it, the bump hop in szymonrychu/tatara-agent-skills "
                 f".github/workflows/release.yml (the `pins:` array of the `Bump "
                 f"tatara-helmfile skillsRef` step) is not reaching this repo."
             )
@@ -146,8 +154,8 @@ def main(argv):
     problems = evaluate(read_pins(root), tags)
     if problems:
         sys.stderr.write(
-            "::error::agent.skillsRef is stale - the skills CD hop is not reaching "
-            "this repo.\n"
+            "::error::agent.skillsRef currency check failed; the fleet may be running "
+            "stale skills.\n"
         )
         for problem in problems:
             sys.stderr.write(f"  - {problem}\n")

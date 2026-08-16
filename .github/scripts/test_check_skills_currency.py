@@ -122,7 +122,32 @@ def test_no_pins_at_all_is_reported():
     tags = currency.parse_tags(LS_REMOTE)
     problems = currency.evaluate({}, tags)
     assert len(problems) == 1
-    assert "no values/project-*/common.yaml" in problems[0]
+    assert "values/project-*/common.yaml" in problems[0]
+
+
+def test_no_pins_message_names_the_condition_it_actually_fires_on():
+    """Empty dict means the GLOB matched nothing, not "present but unreadable".
+
+    A present-but-unreadable file maps to None and is reported per project by
+    the branch above, so this message must not describe that case - it sends
+    the reader to inspect files that are fine.
+    """
+    problems = currency.evaluate({}, currency.parse_tags(LS_REMOTE))
+    assert "matched no files" in problems[0]
+    assert "carried a readable skillsRef" not in problems[0]
+
+
+def test_lag_message_hedges_the_parked_deploy_train_cause():
+    """Under the terminal hop, lag >= 2 is more often a parked train than a dead hop.
+
+    The pin rides cd/deploy-train; that PR sits unmerged whenever ANY component's
+    pin reds the diff. Naming only "the hop is not reaching this repo" sends the
+    reader to debug a workflow that is working.
+    """
+    problems = currency.evaluate(
+        {"project-tatara": "v2.2.0"}, currency.parse_tags(LS_REMOTE)
+    )
+    assert "cd/deploy-train" in problems[0]
 
 
 def test_fetch_failure_raises_rather_than_returning_an_empty_list():

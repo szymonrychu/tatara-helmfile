@@ -67,7 +67,7 @@ project:
       # what an agent pod clones: tatara-operator internal/agent/pod.go appends
       # TATARA_SKILLS_REF unconditionally, so it always overrides the image ENV.
       # CD-MANAGED as of #397 by tatara-agent-skills .github/workflows/
-      # release.yml, the `pins:` array of its `bump tatara-helmfile skillsRef`
+      # release.yml, the `pins:` array of its `Bump tatara-helmfile skillsRef`
       # step, which rewrites all three projects in one commit. Do NOT hand-edit:
       # a hand bump is overwritten by the next skills release, and the drift it
       # papers over is exactly what #397 closed. .github/scripts/
