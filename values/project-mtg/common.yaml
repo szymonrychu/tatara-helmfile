@@ -46,7 +46,7 @@ project:
       modelByKind:
         clarify: claude-opus-5
         review: claude-opus-5
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.3.2
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.3.3
       maxTaskTokens: 2000000
       permissionMode: bypassPermissions
       # HAND-MANAGED: see the note in values/project-tatara/common.yaml. Move
