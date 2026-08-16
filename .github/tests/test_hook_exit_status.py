@@ -55,6 +55,7 @@ def run_hook(
     kubectl_rc=None,
     sops_rc=None,
     unreadable=(),
+    find_rc=None,
 ):
     """Copy .hook.sh into a synthetic tree, run it, return (rc, attempt log)."""
     root = tmp_path / "helmfile"
@@ -78,10 +79,12 @@ def run_hook(
     log.write_text("")
 
     env = dict(os.environ)
-    env["PATH"] = "%s:%s" % (install_fakes(tmp_path), env["PATH"])
+    fakebin = install_fakes(tmp_path, fake_find=find_rc is not None)
+    env["PATH"] = "%s:%s" % (fakebin, env["PATH"])
     env["FAKE_LOG"] = str(log)
     env["FAKE_RC"] = json.dumps(kubectl_rc or {})
     env["SOPS_RC"] = json.dumps(sops_rc or {})
+    env["FIND_RC"] = str(find_rc or 0)
 
     # Made unreadable AFTER the tree is populated and restored in `finally`, or
     # pytest's tmp_path reaper trips over it.
@@ -280,6 +283,30 @@ root_only = pytest.mark.skipif(
 )
 
 
+def test_a_find_traversal_failure_is_fatal(tmp_path):
+    """Same contract as the 0000-subtree cases below, but with find's status
+    injected, so it holds for any euid - including a root container, where
+    those cases skip and would otherwise leave `wait "$!"` unpinned."""
+    proc, attempts = run_hook(
+        tmp_path,
+        "presync",
+        release_files=["a.%s.pre.yaml" % RELEASE],
+        find_rc=1,
+    )
+    assert proc.returncode != 0, proc.stdout + proc.stderr
+    assert any("a.%s.pre.yaml" % RELEASE in line for line in attempts), attempts
+
+
+def test_a_find_traversal_failure_in_hooks_is_fatal(tmp_path):
+    proc, _ = run_hook(
+        tmp_path,
+        "presync",
+        hook_files=[("h.common.pre.sh", 0)],
+        find_rc=1,
+    )
+    assert proc.returncode != 0, proc.stdout + proc.stderr
+
+
 @root_only
 def test_unreadable_subtree_under_release_raw_is_fatal(tmp_path):
     """`done < <(find ...)` discards find's exit status.
@@ -345,3 +372,24 @@ def test_a_hook_script_reading_stdin_does_not_truncate_the_loop(tmp_path):
     assert proc.returncode == 0, proc.stdout + proc.stderr
     ran = [line for line in attempts if line.startswith("hookscript ")]
     assert len(ran) == len(names), ran
+
+
+def test_invoked_commands_get_devnull_on_stdin(tmp_path):
+    """The `< /dev/null` on kubectl/sops is defensive - neither reads stdin
+    today - so assert the redirection directly rather than via a behaviour
+    only `run_hooks` can exhibit."""
+    proc, attempts = run_hook(
+        tmp_path,
+        "presync",
+        release_files=[
+            "a.%s.pre.yaml" % RELEASE,
+            "s.%s.pre.secrets.yaml" % RELEASE,
+        ],
+    )
+    assert proc.returncode == 0, proc.stderr
+    # The kubectl reading the sops pipe is the one deliberate exception, and it
+    # logs no stdin= note at all.
+    noted = [line for line in attempts if "stdin=" in line]
+    assert len(noted) == 2, attempts
+    for line in noted:
+        assert line.endswith("stdin=/dev/null"), line

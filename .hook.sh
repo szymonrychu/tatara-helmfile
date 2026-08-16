@@ -15,6 +15,15 @@ fail() {
     exit 1
 }
 
+# The loops below recover find's traversal status with `wait "$!"`, and $! is
+# only set for a process substitution from bash 5.1. On 5.0 and older this
+# script would die under `nounset` with `$!: unbound variable` - fail-closed,
+# but pointing nowhere near the cause, on the cluster's only apply path. The
+# runner image is not pinned in this repo, so say it out loud.
+if ((BASH_VERSINFO[0] < 5 || (BASH_VERSINFO[0] == 5 && BASH_VERSINFO[1] < 1))); then
+    fail "bash >= 5.1 required, found ${BASH_VERSION}: \$! is not set for a process substitution before 5.1"
+fi
+
 readonly HELMFILE_DIR="${1:-}"
 readonly EVENT_NAME="${2:-}"
 readonly RELEASE_NAME="${3:-}"

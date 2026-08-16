@@ -28,11 +28,19 @@ if target == "-":
     # The fake sops emits "decrypted:<basename>"; an empty read means the
     # decrypt produced nothing.
     name = payload.split("decrypted:")[-1] if payload else "<empty-stdin>"
+    note = ""
 else:
     name = os.path.basename(target)
+    # Recorded, never read: reading it is what the loop must be protected FROM.
+    # `< /dev/null` shows up as a readlink to /dev/null, the inherited NUL file
+    # list as a pipe.
+    try:
+        note = " stdin=%s" % os.readlink("/proc/self/fd/0")
+    except OSError:
+        note = " stdin=unknown"
 
 with open(os.environ["FAKE_LOG"], "a") as fh:
-    fh.write("kubectl %s %s\\n" % (args[0], name))
+    fh.write("kubectl %s %s%s\\n" % (args[0], name, note))
 
 sys.exit(json.loads(os.environ.get("FAKE_RC", "{}")).get(name, 0))
 '''
@@ -41,8 +49,12 @@ FAKE_SOPS = '''#!/usr/bin/env python3
 import json, os, sys
 
 name = os.path.basename(sys.argv[-1])
+try:
+    note = " stdin=%s" % os.readlink("/proc/self/fd/0")
+except OSError:
+    note = " stdin=unknown"
 with open(os.environ["FAKE_LOG"], "a") as fh:
-    fh.write("sops %s\\n" % name)
+    fh.write("sops %s%s\\n" % (name, note))
 
 rc = json.loads(os.environ.get("SOPS_RC", "{}")).get(name, 0)
 if rc:
@@ -54,16 +66,38 @@ FAKE_HELM = '''#!/usr/bin/env python3
 print("[]")
 '''
 
+# Delegates to the real find, then overrides a clean exit with $FIND_RC. An
+# unreadable subtree is the faithful way to make find fail, but root ignores
+# mode 0000, so those cases have to skip - and they are exactly the cases that
+# pin `wait "$!"`. This makes the same pin hold for any euid.
+FAKE_FIND = '''#!/usr/bin/env python3
+import os, subprocess, sys
 
-def install_fakes(tmp_path: Path) -> Path:
+here = os.path.dirname(os.path.abspath(__file__))
+real = None
+for d in os.environ.get("PATH", "").split(os.pathsep):
+    if os.path.abspath(d or ".") == here:
+        continue
+    cand = os.path.join(d, "find")
+    if os.access(cand, os.X_OK):
+        real = cand
+        break
+if real is None:
+    sys.exit("fake find: no real find on PATH")
+
+rc = subprocess.run([real] + sys.argv[1:]).returncode
+sys.exit(rc or int(os.environ.get("FIND_RC", "0")))
+'''
+
+
+def install_fakes(tmp_path: Path, *, fake_find: bool = False) -> Path:
     """Write the fakes into <tmp_path>/fakebin and return that directory."""
     binf = tmp_path / "fakebin"
     binf.mkdir()
-    for name, body in (
-        ("kubectl", FAKE_KUBECTL),
-        ("sops", FAKE_SOPS),
-        ("helm", FAKE_HELM),
-    ):
+    fakes = [("kubectl", FAKE_KUBECTL), ("sops", FAKE_SOPS), ("helm", FAKE_HELM)]
+    if fake_find:
+        fakes.append(("find", FAKE_FIND))
+    for name, body in fakes:
         p = binf / name
         p.write_text(body)
         p.chmod(0o755)

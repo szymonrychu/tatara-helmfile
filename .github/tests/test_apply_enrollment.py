@@ -60,8 +60,11 @@ def enrollment_script() -> str:
 
 
 def test_the_step_declares_shell_bash():
-    """The default `run:` shell is `bash -e` with NO pipefail, which makes
-    `sops -d | kubectl apply` take its status from kubectl alone."""
+    """`shell: bash` is load-bearing, not cosmetic: the default `run:` shell is
+    `bash -e` with NO pipefail, under which `sops -d | kubectl apply` takes its
+    status from kubectl alone and a failed decrypt applies nothing and reports
+    success. These tests run the block under pipefail, so without this
+    assertion they would pass while CI ran it without."""
     body, _ = _step_lines()
     assert any(line.strip() == "shell: bash" for line in body), body
 
@@ -74,13 +77,18 @@ def run_enrollment(
     kubectl_rc=None,
     sops_rc=None,
     unreadable=(),
+    find_rc=None,
+    remove_raw=False,
 ):
     root = tmp_path / "repo"
     raw = root / RAW
-    raw.mkdir(parents=True)
-    for name in plain + secrets:
-        (raw / name).parent.mkdir(parents=True, exist_ok=True)
-        (raw / name).write_text("# manifest\n")
+    if not remove_raw:
+        raw.mkdir(parents=True)
+        for name in plain + secrets:
+            (raw / name).parent.mkdir(parents=True, exist_ok=True)
+            (raw / name).write_text("# manifest\n")
+    else:
+        root.mkdir(parents=True)
 
     home = tmp_path / "home"
     (home / ".local" / "bin").mkdir(parents=True)
@@ -95,11 +103,13 @@ def run_enrollment(
     log.write_text("")
 
     env = dict(os.environ)
-    env["PATH"] = "%s:%s" % (install_fakes(tmp_path), env["PATH"])
+    fakebin = install_fakes(tmp_path, fake_find=find_rc is not None)
+    env["PATH"] = "%s:%s" % (fakebin, env["PATH"])
     env["HOME"] = str(home)
     env["FAKE_LOG"] = str(log)
     env["FAKE_RC"] = json.dumps(kubectl_rc or {})
     env["SOPS_RC"] = json.dumps(sops_rc or {})
+    env["FIND_RC"] = str(find_rc or 0)
 
     locked = [root / rel for rel in unreadable]
     for d in locked:
@@ -129,6 +139,17 @@ def test_clean_enrollment_succeeds(tmp_path):
     assert len([a for a in attempts if a.startswith("kubectl ")]) == 3
 
 
+def test_invoked_commands_get_devnull_on_stdin(tmp_path):
+    proc, attempts = run_enrollment(
+        tmp_path, plain=("project.yaml",), secrets=("scm.secrets.yaml",)
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    noted = [a for a in attempts if "stdin=" in a]
+    assert len(noted) == 2, attempts  # the kubectl on the sops pipe is exempt
+    for line in noted:
+        assert line.endswith("stdin=/dev/null"), line
+
+
 def test_a_rejected_manifest_fails_the_step(tmp_path):
     plain = ("a.yaml", "b.yaml", "c.yaml")
     proc, attempts = run_enrollment(
@@ -147,6 +168,22 @@ def test_a_failed_decrypt_fails_the_step(tmp_path):
         sops_rc={"scm.secrets.yaml": 1},
     )
     assert proc.returncode != 0
+
+
+def test_a_find_traversal_failure_fails_the_step(tmp_path):
+    """Holds for any euid, unlike the 0000-mode case below."""
+    proc, attempts = run_enrollment(tmp_path, plain=("project.yaml",), find_rc=1)
+    assert proc.returncode != 0, proc.stdout + proc.stderr
+    assert any("project.yaml" in a for a in attempts), attempts
+
+
+def test_a_missing_raw_tree_fails_the_step(tmp_path):
+    """Unlike `.hook.sh`, this block has no `[[ -d ]]` guard: a values tree
+    reorganised out from under it enrolls nothing, and used to report success.
+    """
+    proc, attempts = run_enrollment(tmp_path, remove_raw=True)
+    assert proc.returncode != 0, proc.stdout + proc.stderr
+    assert attempts == [], attempts
 
 
 @pytest.mark.skipif(
