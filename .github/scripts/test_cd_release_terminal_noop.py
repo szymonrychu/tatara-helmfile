@@ -19,21 +19,20 @@ import textwrap
 from pathlib import Path
 
 import pytest
-import yaml
 
 ACTION = Path(__file__).parents[1] / "actions" / "cd-release" / "action.yml"
 
 FELL_THROUGH = "FELL_THROUGH"
 
 
-def _bump_script():
-    steps = yaml.safe_load(ACTION.read_text(encoding="utf-8"))["runs"]["steps"]
-    return next(s["run"] for s in steps if s.get("id") == "bump")
-
-
 def noop_block():
-    """The `if [ "$pushed" = "noop" ]` block, verbatim, closing `fi` included."""
-    lines = _bump_script().splitlines()
+    """The `if [ "$pushed" = "noop" ]` block, verbatim, closing `fi` included.
+
+    Scanned out of the raw file rather than parsed: `lint.yaml` installs pytest
+    and nothing else, and every other suite here is stdlib-only. A YAML parse
+    would be tidier and would cost this test its only runner.
+    """
+    lines = ACTION.read_text(encoding="utf-8").splitlines()
     starts = [i for i, ln in enumerate(lines) if re.match(r'\s*if \[ "\$pushed" = "noop" \]', ln)]
     assert len(starts) == 1, f"expected exactly one no-op guard, found {len(starts)}"
     start = starts[0]
