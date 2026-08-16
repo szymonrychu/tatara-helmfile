@@ -204,7 +204,6 @@ is local to this repo and is never touched by the sync, which is where a repo
 records how these rules apply to it.
 <!-- END tatara-shared-contract -->
 
-
 ## Rule applicability
 
 This repo has no service code, so rules 1, 11, 12 and 13 are N/A, and rule 5 is
