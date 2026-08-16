@@ -278,7 +278,7 @@ def test_clean_hook_scripts_succeed(tmp_path):
 
 # --- find's own traversal status ---------------------------------------------
 
-root_only = pytest.mark.skipif(
+requires_non_root = pytest.mark.skipif(
     os.geteuid() == 0, reason="root ignores the 0000 mode that makes find fail"
 )
 
@@ -307,7 +307,7 @@ def test_a_find_traversal_failure_in_hooks_is_fatal(tmp_path):
     assert proc.returncode != 0, proc.stdout + proc.stderr
 
 
-@root_only
+@requires_non_root
 def test_unreadable_subtree_under_release_raw_is_fatal(tmp_path):
     """`done < <(find ...)` discards find's exit status.
 
@@ -326,7 +326,7 @@ def test_unreadable_subtree_under_release_raw_is_fatal(tmp_path):
     assert any("a.%s.pre.yaml" % RELEASE in line for line in attempts), attempts
 
 
-@root_only
+@requires_non_root
 def test_unreadable_subtree_under_hooks_is_fatal(tmp_path):
     proc, _ = run_hook(
         tmp_path,
@@ -337,7 +337,7 @@ def test_unreadable_subtree_under_hooks_is_fatal(tmp_path):
     assert proc.returncode != 0, proc.stdout + proc.stderr
 
 
-@root_only
+@requires_non_root
 def test_unreadable_subtree_under_global_raw_is_fatal(tmp_path):
     proc, _ = run_hook(
         tmp_path,
