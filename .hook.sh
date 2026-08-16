@@ -77,9 +77,16 @@ is_expected_rc() {
 
 # `find -exec cmd \;` reports find's OWN traversal status, never cmd's, so
 # every one of these call sites used to report success on a rejected manifest
-# (#398). Loop instead. The loop reads from a process substitution rather than
-# a pipe because `find | while` runs the body in a subshell, where FAILURES
-# would be appended to a copy that dies with it.
+# (#398). Loop instead. Three mechanics each silently un-fix that fix:
+#
+#   - `find | while` runs the body in a SUBSHELL, where FAILURES is appended to
+#     a copy that dies with the pipe. Read from a process substitution instead.
+#   - a process substitution then discards find's OWN traversal status - the one
+#     thing find's exit code did report, and which the pre-fix `set -e` caught.
+#     `wait "$!"` after the loop recovers it (bash sets $! for a procsub).
+#   - the loop body inherits the NUL file list as stdin, so anything that reads
+#     stdin eats the remaining matches and the loop stops early. Every invoked
+#     command gets `< /dev/null`; only the kubectl reading a sops pipe does not.
 #
 # mode is `plain` or `sops`.
 apply_matching() {
@@ -95,7 +102,7 @@ apply_matching() {
             # found" - the decrypt failure would be swallowed all over again.
             printf "+ sops -d %s | %s %s -f -\n" "${f}" "${KUBECTL[*]}" "${NS_ARGS[*]}"
             set +e
-            sops -d "${f}" | "${KUBECTL[@]}" "${NS_ARGS[@]}" -f -
+            sops -d "${f}" < /dev/null | "${KUBECTL[@]}" "${NS_ARGS[@]}" -f -
             st=("${PIPESTATUS[@]}")
             set -e
             if [[ "${st[0]}" -ne 0 ]]; then
@@ -106,7 +113,7 @@ apply_matching() {
         else
             printf "+ %s %s -f %s\n" "${KUBECTL[*]}" "${NS_ARGS[*]}" "${f}"
             set +e
-            "${KUBECTL[@]}" "${NS_ARGS[@]}" -f "${f}"
+            "${KUBECTL[@]}" "${NS_ARGS[@]}" -f "${f}" < /dev/null
             rc="$?"
             set -e
         fi
@@ -116,6 +123,7 @@ apply_matching() {
             note_failure "${KUBECTL[*]} -f ${f}: exit ${rc}"
         fi
     done < <(find "${dir}" -name "${pattern}" -print0)
+    wait "$!" || note_failure "find ${dir} -name ${pattern}: exit $?"
 }
 
 # Hook scripts have no diff-exit convention, so any non-zero is a failure -
@@ -126,11 +134,12 @@ run_hooks() {
 
     while IFS= read -r -d '' f; do
         set +e
-        bash -xe "${f}" "${RELEASE_NAME}" "${RELEASE_NAMESPACE}" "${RELEASE_VERSION}"
+        bash -xe "${f}" "${RELEASE_NAME}" "${RELEASE_NAMESPACE}" "${RELEASE_VERSION}" < /dev/null
         rc="$?"
         set -e
         [[ "${rc}" -eq 0 ]] || note_failure "hook ${f}: exit ${rc}"
     done < <(find "${dir}" -name "${pattern}" -print0)
+    wait "$!" || note_failure "find ${dir} -name ${pattern}: exit $?"
 }
 
 if [[ ! -z "${RELEASE_NAME}" ]] && [[ ! -z "${RELEASE_NAMESPACE}" ]]; then

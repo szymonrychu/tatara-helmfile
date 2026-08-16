@@ -10,6 +10,10 @@ These tests pin the contract that replaced it:
     found" and is NOT a failure; anything else still is
   - a hook script has no diff-exit convention: any non-zero is a failure, under
     `prepare` too
+  - find's OWN traversal status (an unreadable subtree) is still fatal: the
+    process substitution the loop reads from discards it unless waited on
+  - the loop body must not inherit the NUL file list as stdin, or a hook script
+    that reads stdin drains the remaining matches and the loop stops early
 
 The hook is exercised as a black box: it is copied into a tmp tree next to a
 synthetic values/ layout, with fake `kubectl`/`sops`/`helm` on PATH that log
@@ -24,71 +28,13 @@ from pathlib import Path
 
 import pytest
 
+from fakes import install_fakes
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK = REPO_ROOT / ".hook.sh"
 
 RELEASE = "demo"
 NAMESPACE = "demo-ns"
-
-FAKE_KUBECTL = '''#!/usr/bin/env python3
-import json, os, sys
-
-args = sys.argv[1:]
-
-# The presync health check probes the namespace first. Report it missing so the
-# `helm list` wait loop is skipped: it is not what these tests are about.
-if args[:2] == ["get", "namespace"]:
-    sys.exit(1)
-
-if "-f" in args:
-    target = args[args.index("-f") + 1]
-else:
-    target = "<none>"
-
-if target == "-":
-    payload = sys.stdin.read().strip()
-    # The fake sops emits "decrypted:<basename>"; an empty read means the
-    # decrypt produced nothing.
-    name = payload.split("decrypted:")[-1] if payload else "<empty-stdin>"
-else:
-    name = os.path.basename(target)
-
-with open(os.environ["FAKE_LOG"], "a") as fh:
-    fh.write("kubectl %s %s\\n" % (args[0], name))
-
-sys.exit(json.loads(os.environ.get("FAKE_RC", "{}")).get(name, 0))
-'''
-
-FAKE_SOPS = '''#!/usr/bin/env python3
-import json, os, sys
-
-name = os.path.basename(sys.argv[-1])
-with open(os.environ["FAKE_LOG"], "a") as fh:
-    fh.write("sops %s\\n" % name)
-
-rc = json.loads(os.environ.get("SOPS_RC", "{}")).get(name, 0)
-if rc:
-    sys.exit(rc)
-print("decrypted:%s" % name)
-'''
-
-FAKE_HELM = '''#!/usr/bin/env python3
-print("[]")
-'''
-
-
-def _bin(tmp_path: Path) -> Path:
-    binf = tmp_path / "fakebin"
-    binf.mkdir()
-    for name, body in (
-        ("kubectl", FAKE_KUBECTL),
-        ("sops", FAKE_SOPS),
-        ("helm", FAKE_HELM),
-    ):
-        p = binf / name
-        p.write_text(body)
-        p.chmod(0o755)
-    return binf
 
 
 def _write(path: Path, body: str = "# manifest\n") -> None:
@@ -104,9 +50,11 @@ def run_hook(
     *,
     release_files=(),
     hook_files=(),
+    hook_scripts=(),
     global_files=(),
     kubectl_rc=None,
     sops_rc=None,
+    unreadable=(),
 ):
     """Copy .hook.sh into a synthetic tree, run it, return (rc, attempt log)."""
     root = tmp_path / "helmfile"
@@ -121,6 +69,8 @@ def run_hook(
             root / "values" / RELEASE / "hooks" / name,
             "#!/bin/bash\nexit %d\n" % rc,
         )
+    for name, body in hook_scripts:
+        _write(root / "values" / RELEASE / "hooks" / name, body)
     for name in global_files:
         _write(root / "raw" / name)
 
@@ -128,27 +78,36 @@ def run_hook(
     log.write_text("")
 
     env = dict(os.environ)
-    env["PATH"] = "%s:%s" % (_bin(tmp_path), env["PATH"])
+    env["PATH"] = "%s:%s" % (install_fakes(tmp_path), env["PATH"])
     env["FAKE_LOG"] = str(log)
     env["FAKE_RC"] = json.dumps(kubectl_rc or {})
     env["SOPS_RC"] = json.dumps(sops_rc or {})
 
-    proc = subprocess.run(
-        [
-            "bash",
-            str(root / ".hook.sh"),
-            str(root),
-            event,
-            RELEASE,
-            NAMESPACE,
-            "1.0.0",
-        ],
-        cwd=root,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    # Made unreadable AFTER the tree is populated and restored in `finally`, or
+    # pytest's tmp_path reaper trips over it.
+    locked = [root / rel for rel in unreadable]
+    for d in locked:
+        d.chmod(0o000)
+    try:
+        proc = subprocess.run(
+            [
+                "bash",
+                str(root / ".hook.sh"),
+                str(root),
+                event,
+                RELEASE,
+                NAMESPACE,
+                "1.0.0",
+            ],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    finally:
+        for d in locked:
+            d.chmod(0o755)
     return proc, log.read_text().splitlines()
 
 
@@ -312,3 +271,77 @@ def test_clean_hook_scripts_succeed(tmp_path):
         hook_files=[("h.common.pre.sh", 0), ("h.%s.pre.sh" % RELEASE, 0)],
     )
     assert proc.returncode == 0, proc.stderr
+
+
+# --- find's own traversal status ---------------------------------------------
+
+root_only = pytest.mark.skipif(
+    os.geteuid() == 0, reason="root ignores the 0000 mode that makes find fail"
+)
+
+
+@root_only
+def test_unreadable_subtree_under_release_raw_is_fatal(tmp_path):
+    """`done < <(find ...)` discards find's exit status.
+
+    An unreadable subtree is the ONE failure find's own exit code did report,
+    and which the pre-#398 `set -e` did catch. Silently skipping the manifests
+    under it and reporting success is the same swallow in a new place.
+    """
+    proc, attempts = run_hook(
+        tmp_path,
+        "presync",
+        release_files=["a.%s.pre.yaml" % RELEASE, "locked/b.%s.pre.yaml" % RELEASE],
+        unreadable=["values/%s/raw/locked" % RELEASE],
+    )
+    assert proc.returncode != 0, proc.stdout + proc.stderr
+    # The readable half is still applied: attempt everything, then report.
+    assert any("a.%s.pre.yaml" % RELEASE in line for line in attempts), attempts
+
+
+@root_only
+def test_unreadable_subtree_under_hooks_is_fatal(tmp_path):
+    proc, _ = run_hook(
+        tmp_path,
+        "presync",
+        hook_files=[("locked/h.common.pre.sh", 0)],
+        unreadable=["values/%s/hooks/locked" % RELEASE],
+    )
+    assert proc.returncode != 0, proc.stdout + proc.stderr
+
+
+@root_only
+def test_unreadable_subtree_under_global_raw_is_fatal(tmp_path):
+    proc, _ = run_hook(
+        tmp_path,
+        "presync",
+        global_files=["locked/g.pre.yaml"],
+        unreadable=["raw/locked"],
+    )
+    assert proc.returncode != 0, proc.stdout + proc.stderr
+
+
+# --- the loop's stdin --------------------------------------------------------
+
+DRAINS_STDIN = """#!/bin/bash
+printf 'hookscript %s\\n' "$(basename "$0")" >> "$FAKE_LOG"
+cat > /dev/null
+"""
+
+
+def test_a_hook_script_reading_stdin_does_not_truncate_the_loop(tmp_path):
+    """The loop body inherits the NUL file list as stdin unless redirected.
+
+    `values/*/hooks/*.sh` is the documented extension point and its payload is
+    arbitrary user shell, so any read of stdin there eats the remaining matches
+    and the loop stops early - still exit 0.
+    """
+    names = ["a.common.pre.sh", "b.common.pre.sh", "c.common.pre.sh"]
+    proc, attempts = run_hook(
+        tmp_path,
+        "presync",
+        hook_scripts=[(n, DRAINS_STDIN) for n in names],
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    ran = [line for line in attempts if line.startswith("hookscript ")]
+    assert len(ran) == len(names), ran

@@ -95,11 +95,15 @@ jobs:
           # Both halves loop instead, attempt every file, and report together.
           # Read from a process substitution, NOT `find | while`: a piped loop
           # body runs in a subshell, where `rc` is set on a copy that dies with
-          # it and the fix would silently do nothing.
+          # it and the fix would silently do nothing. A process substitution in
+          # turn discards find's OWN traversal status (an unreadable raw tree
+          # enrolls nothing and reports success), so each loop waits on it.
           while IFS= read -r -d '' f; do
-            kubectl apply -f "$f" || { echo "::error::kubectl apply -f $f failed"; rc=1; }
+            kubectl apply -f "$f" < /dev/null || { echo "::error::kubectl apply -f $f failed"; rc=1; }
           done < <(find values/tatara-operator/raw -maxdepth 1 -name '*.yaml' ! -name '*.secrets.yaml' -print0)
+          wait "$!" || { echo "::error::find over $PWD/values/tatara-operator/raw failed: exit $?"; rc=1; }
           while IFS= read -r -d '' f; do
-            sops -d "$f" | kubectl apply -f - || { echo "::error::sops -d $f | kubectl apply -f - failed"; rc=1; }
+            sops -d "$f" < /dev/null | kubectl apply -f - || { echo "::error::sops -d $f | kubectl apply -f - failed"; rc=1; }
           done < <(find values/tatara-operator/raw -maxdepth 1 -name '*.secrets.yaml' -print0)
+          wait "$!" || { echo "::error::find over $PWD/values/tatara-operator/raw (secrets) failed: exit $?"; rc=1; }
           exit "$rc"
