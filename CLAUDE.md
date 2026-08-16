@@ -207,7 +207,8 @@ records how these rules apply to it.
 ## Rule applicability
 
 This repo has no service code, so rules 1, 11, 12 and 13 are N/A, and rule 5 is
-N/A because charts are pulled by version rather than created here. Rule 14 is
+N/A because charts are pulled by version rather than created here. Everything
+else applies, rule 16 included - this is the repo that runs helm. Rule 14 is
 the one that points AT this repo: the cluster-specific values a chart must not
 bake live in this values tree (per-bucket `values/common.yaml` + per-release
 `values/<name>/{common,default}.yaml` + sops `default.secrets.yaml`).
