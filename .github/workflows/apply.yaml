@@ -65,6 +65,7 @@ jobs:
           printf '%s' "$HARBOR_PASSWORD" | helm registry login harbor.szymonrichert.pl -u "$HARBOR_USERNAME" --password-stdin
 
       - name: helmfile apply
+        shell: bash
         run: |
           eval "$($HOME/.local/bin/mise activate bash)"
           helmfile -e default apply --suppress-secrets
@@ -78,9 +79,31 @@ jobs:
       # *.secrets.yaml sops-decrypted first (a raw kubectl apply of an encrypted
       # file fails with "unexpected GroupVersion string: ENC[...]").
       - name: reconcile enrollment CRs (Project + Repository + scm Secrets)
+        # `shell: bash` is `bash --noprofile --norc -eo pipefail`; the default
+        # for `run:` is `bash -e` with NO pipefail, which makes
+        # `sops -d | kubectl apply` take its status from kubectl alone - a
+        # failed decrypt applies nothing and reports success (#398). `-u` is
+        # deliberately not set: `mise activate` is third-party shell on the
+        # cluster's only apply path and nounset over it buys nothing here.
+        shell: bash
         run: |
           eval "$($HOME/.local/bin/mise activate bash)"
-          find values/tatara-operator/raw -maxdepth 1 -name '*.yaml' ! -name '*.secrets.yaml' \
-            -exec kubectl apply -f {} \;
-          find values/tatara-operator/raw -maxdepth 1 -name '*.secrets.yaml' -print0 \
-            | while IFS= read -r -d '' f; do sops -d "$f" | kubectl apply -f -; done
+          rc=0
+          # `find -exec cmd \;` reports find's own traversal status, never
+          # cmd's, so a rejected enrollment CR used to report success from the
+          # very step whose comment above promises deterministic enrollment.
+          # Both halves loop instead, attempt every file, and report together.
+          # Read from a process substitution, NOT `find | while`: a piped loop
+          # body runs in a subshell, where `rc` is set on a copy that dies with
+          # it and the fix would silently do nothing. A process substitution in
+          # turn discards find's OWN traversal status (an unreadable raw tree
+          # enrolls nothing and reports success), so each loop waits on it.
+          while IFS= read -r -d '' f; do
+            kubectl apply -f "$f" < /dev/null || { echo "::error::kubectl apply -f $f failed"; rc=1; }
+          done < <(find values/tatara-operator/raw -maxdepth 1 -name '*.yaml' ! -name '*.secrets.yaml' -print0)
+          wait "$!" || { echo "::error::find over $PWD/values/tatara-operator/raw failed: exit $?"; rc=1; }
+          while IFS= read -r -d '' f; do
+            sops -d "$f" < /dev/null | kubectl apply -f - || { echo "::error::sops -d $f | kubectl apply -f - failed"; rc=1; }
+          done < <(find values/tatara-operator/raw -maxdepth 1 -name '*.secrets.yaml' -print0)
+          wait "$!" || { echo "::error::find over $PWD/values/tatara-operator/raw (secrets) failed: exit $?"; rc=1; }
+          exit "$rc"
