@@ -92,7 +92,7 @@ OPERATOR_PRODUCER = (
 )
 SKILLS_PRODUCER = (
     "szymonrychu/tatara-agent-skills .github/workflows/release.yml, "
-    "the `pins:` array of the `bump tatara-helmfile skillsRef` step"
+    "the `pins:` array of the `Bump tatara-helmfile skillsRef` step"
 )
 
 

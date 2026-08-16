@@ -97,6 +97,27 @@ def test_no_tags_at_all_is_reported_rather_than_vacuously_clean():
     assert "no semver tags" in problems[0]
 
 
+def test_an_unreadable_pin_site_is_reported_rather_than_dropped():
+    """A file read_pins could not parse must not silently leave the fleet unchecked."""
+    tags = currency.parse_tags(LS_REMOTE)
+    problems = currency.evaluate({"project-tatara": None}, tags)
+    assert len(problems) == 1
+    assert "no single readable skillsRef" in problems[0]
+
+
+def test_read_pins_maps_a_malformed_file_to_none(tmp_path):
+    good = tmp_path / "values" / "project-good"
+    bad = tmp_path / "values" / "project-bad"
+    good.mkdir(parents=True)
+    bad.mkdir(parents=True)
+    (good / "common.yaml").write_text("      skillsRef: v2.4.0\n")
+    (bad / "common.yaml").write_text("      skillsRef: v2.4.0\n      skillsRef: v2.3.0\n")
+    assert currency.read_pins(tmp_path) == {
+        "project-good": "v2.4.0",
+        "project-bad": None,
+    }
+
+
 def test_no_pins_at_all_is_reported():
     tags = currency.parse_tags(LS_REMOTE)
     problems = currency.evaluate({}, tags)

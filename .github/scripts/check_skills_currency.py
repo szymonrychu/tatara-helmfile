@@ -78,12 +78,18 @@ def parse_tags(text):
 
 
 def read_pins(root):
-    """{project: skillsRef} for every values/project-*/common.yaml."""
+    """{project: skillsRef} for every values/project-*/common.yaml.
+
+    A file with zero or several matches maps to None rather than being dropped:
+    a pin site this cannot read is a pin site this cannot vouch for, and
+    evaluate() reports it. check_pin_coverage.py blocks that state on every PR
+    and in pre-commit, so it should be unreachable - which is exactly why it
+    must not degrade into silence if it ever is reached.
+    """
     pins = {}
     for path in sorted(Path(root).glob("values/project-*/common.yaml")):
         found = SKILLS_REF_RE.findall(path.read_text(encoding="utf-8"))
-        if len(found) == 1:
-            pins[path.parent.name] = found[0]
+        pins[path.parent.name] = found[0] if len(found) == 1 else None
     return pins
 
 
@@ -104,6 +110,12 @@ def evaluate(pins_by_project, tags, max_lag=MAX_LAG):
     index = {tag: i for i, tag in enumerate(tags)}
     problems = []
     for project, pin in sorted(pins_by_project.items()):
+        if pin is None:
+            problems.append(
+                f"values/{project}/common.yaml carries no single readable "
+                f"skillsRef, so its currency could not be checked at all."
+            )
+            continue
         if pin not in index:
             problems.append(
                 f"values/{project}/common.yaml pins skillsRef={pin} which names no "
@@ -117,7 +129,7 @@ def evaluate(pins_by_project, tags, max_lag=MAX_LAG):
                 f"values/{project}/common.yaml pins skillsRef={pin}, {lag} published "
                 f"tags behind {newest}. A lag over {max_lag} is not a deploy train in "
                 f"flight: the bump hop in szymonrychu/tatara-agent-skills "
-                f".github/workflows/release.yml (the `pins:` array of the `bump "
+                f".github/workflows/release.yml (the `pins:` array of the `Bump "
                 f"tatara-helmfile skillsRef` step) is not reaching this repo."
             )
     return problems
