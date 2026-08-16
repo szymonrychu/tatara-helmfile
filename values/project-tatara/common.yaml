@@ -63,13 +63,18 @@ project:
       maxTaskTokens: 3000000
       permissionMode: bypassPermissions
       # Pin the agent-skills install (kills the `main` drift; component 5
-      # / component 4b). HAND-MANAGED: tatara-agent-skills release.yml bumps
-      # the wrapper Dockerfile's TATARA_SKILLS_REF, NOT this value, so this pin
-      # overrides the image's baked ref and does not move on its own. Move all
-      # three projects together - .github/scripts/check_pin_coverage.py fails
-      # the build if they diverge, and check_agent_pins() there also refuses
-      # this AND the image tag above if either goes floating (main/latest) or absent.
-      skillsRef: v2.1.1
+      # / component 4b). This pin, NOT the image's baked TATARA_SKILLS_REF, is
+      # what an agent pod clones: tatara-operator internal/agent/pod.go appends
+      # TATARA_SKILLS_REF unconditionally, so it always overrides the image ENV.
+      # CD-MANAGED as of #397 by tatara-agent-skills .github/workflows/
+      # release.yml, the `pins:` array of its `bump tatara-helmfile skillsRef`
+      # step, which rewrites all three projects in one commit. Do NOT hand-edit:
+      # a hand bump is overwritten by the next skills release, and the drift it
+      # papers over is exactly what #397 closed. .github/scripts/
+      # check_pin_coverage.py fails the build if the three diverge, and
+      # check_agent_pins() there also refuses this AND the image tag above if
+      # either goes floating (main/latest) or absent.
+      skillsRef: v2.4.0
       # 3600s of INACTIVITY is now the STALL PROBE TRIGGER, not a kill
       # deadline (post-O2). The operator anchors on max(turn-started-at,
       # turn-last-activity-at) including subagent activity, and on expiry

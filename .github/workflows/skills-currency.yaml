@@ -1,0 +1,37 @@
+name: skills-currency
+
+# Scheduled staleness check on `agent.skillsRef` (#397). Deliberately NOT on
+# pull_request and NOT part of lint.yaml:
+#
+# - It fetches tatara-agent-skills' tag list, so it cannot live in
+#   check_pin_coverage.py without costing that merge gate its offline,
+#   stdlib-only, pre-commit-runnable contract.
+# - Staleness is a fleet condition, not a property of the PR in front of you.
+#   A gate that is legitimately red while an unrelated deploy train is in
+#   flight gets weakened to a warning, then deleted. That is how #397's
+#   remedy ended up structurally blind to #397.
+#
+# Its job is to notice the ONE thing uniformity cannot see: the skills bump hop
+# deleted, renamed, or never wired. Hosted runner, no secrets, no cluster - the
+# skills repo is public, so `git ls-remote` needs no token.
+
+on:
+  schedule:
+    # 06:15 UTC daily, off the 03:30Z cluster re-roll window.
+    - cron: '15 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  currency:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: agent.skillsRef currency against tatara-agent-skills
+        run: python .github/scripts/check_skills_currency.py

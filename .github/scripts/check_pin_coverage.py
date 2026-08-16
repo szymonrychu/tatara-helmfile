@@ -21,8 +21,18 @@ turns "silently absent" into a red check. The project SET is also checked on
 both sides of the repo (values tree vs helmfile releases), so a newly enrolled
 project is covered the moment its values directory lands.
 
-This is deliberately NOT a check against upstream's latest tag: a pin lagging
-the newest release is normal between deploy trains. Non-uniformity is not.
+WHAT THIS PROVES, AND WHAT IT DOES NOT: it proves the fan-out is COMPLETE and
+UNIFORM, never that it is CURRENT. A pin lagging the newest release is normal
+between deploy trains, so a currency assertion here would be red during normal
+operation - and it would need a network fetch, which would cost this guard its
+offline/stdlib contract and its pre-commit path. Currency is a separate,
+non-blocking, scheduled check: .github/scripts/check_skills_currency.py.
+
+That split has one blind spot worth naming, because it is the whole of #397:
+three projects agreeing on a stale value is green here forever. Uniformity is
+only evidence of a working fan-out while a producer actually writes the pin.
+Until #397 nothing wrote `skillsRef`, so this check passed for eight days over
+a fleet three skills releases behind.
 
 Read-only, stdlib-only, no cluster access. Exit 0 clean, 1 with a report.
 """
@@ -44,7 +54,23 @@ WRAPPER_IMAGE_RE = re.compile(
     r"^\s*image: harbor\.szymonrichert\.pl/containers/tatara-claude-code-wrapper:(\S+)$",
     re.MULTILINE,
 )
+# CROSS-REPO CONTRACT. The producer that rewrites this pin lives in another
+# repo (tatara-agent-skills .github/workflows/release.yml) and cannot see this
+# regex; this regex cannot see its pins array. `(\S+)$` is the load-bearing
+# part: it accepts exactly the shape SKILLS_PIN_VALUE_TEMPLATE below writes -
+# one line, one non-whitespace token, nothing trailing. Relaxing it to `(.*)$`
+# would silently swallow a trailing comment and ship it as the pin value.
+# test_check_pin_coverage.py exercises both halves against the real values
+# files, so a reformat of a pin site reds THIS repo's lint instead of
+# hard-erroring apply-pins.py with count==0 mid-release in tatara-agent-skills.
 SKILLS_REF_RE = re.compile(r"^\s*skillsRef: (\S+)$", re.MULTILINE)
+
+# The producer's half of that contract, kept here so the test above can run it.
+# Must stay byte-identical (modulo the JSON/YAML escaping of the workflow file)
+# with the `pins:` array of the `bump tatara-helmfile skillsRef` step in
+# tatara-agent-skills .github/workflows/release.yml.
+SKILLS_PIN_PATTERN = r"^(\s*skillsRef: ).*$"
+SKILLS_PIN_VALUE_TEMPLATE = r"\1{{version}}"
 OPERATOR_TAG_RE = re.compile(r'^\s*tag: "(\S+)"$', re.MULTILINE)
 
 # A concrete pin is a vX.Y.Z tag. "main", "latest", a branch name or an
@@ -65,9 +91,8 @@ OPERATOR_PRODUCER = (
     "the `pins:` array of the `bump` job"
 )
 SKILLS_PRODUCER = (
-    "hand-managed in this repo - tatara-agent-skills release.yml bumps the "
-    "wrapper Dockerfile's TATARA_SKILLS_REF, NOT these values - so move all "
-    "projects together"
+    "szymonrychu/tatara-agent-skills .github/workflows/release.yml, "
+    "the `pins:` array of the `bump tatara-helmfile skillsRef` step"
 )
 
 
