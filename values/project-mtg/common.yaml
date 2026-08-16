@@ -49,10 +49,12 @@ project:
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.4.0
       maxTaskTokens: 2000000
       permissionMode: bypassPermissions
-      # HAND-MANAGED: see the note in values/project-tatara/common.yaml. Move
-      # all three projects together; check_pin_coverage.py's check_agent_pins()
-      # refuses a floating or absent value here or on the image tag above.
-      skillsRef: v2.1.1
+      # CD-MANAGED as of #397 by the skills release, mtg included - the earlier
+      # "mtg is hand-managed" carve-out does not apply to this pin. See the note
+      # in values/project-tatara/common.yaml. Do not hand-edit;
+      # check_pin_coverage.py's check_agent_pins() refuses a floating or absent
+      # value here or on the image tag above.
+      skillsRef: v2.4.0
       # 3600s of INACTIVITY is now the STALL PROBE TRIGGER, not a kill
       # deadline (post-O2). The operator anchors on max(turn-started-at,
       # turn-last-activity-at) including subagent activity, and on expiry

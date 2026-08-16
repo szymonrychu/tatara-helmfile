@@ -207,6 +207,35 @@ runs:
             echo "::error::could not push to cd/deploy-train after 8 rebase-retries." >&2
             exit 1
           fi
+          # A no-op means "apply-pins produced no diff against the branch as it
+          # is now". That is TWO different states and they need opposite
+          # handling, so the branch-vs-main comparison - not `pushed` - is the
+          # discriminator:
+          #
+          #  - branch merged, pin is in main. Falling through here 422s: `gh pr
+          #    list` finds nothing open and `gh pr create` refuses ("No commits
+          #    between main and cd/deploy-train"). Under `set -e` that fails the
+          #    calling job, which on a caller with `needs:` jobs behind it (the
+          #    skills release and its sync-contract fan-out) silently skips
+          #    them. Exit 0: there is genuinely nothing left to do.
+          #
+          #  - branch is AHEAD of main, i.e. the pin is pushed but the PR is not
+          #    armed. Reachable whenever a prior run died after the push and
+          #    before/inside `gh pr merge --auto` below, and also without any
+          #    re-run at all if the push landed server-side but git reported
+          #    failure and the retry loop then saw its own commit. Falling
+          #    through is exactly right: open_or_reuse_pr REUSES the open PR
+          #    (no create, no 422) and the label + auto-merge arming below run.
+          #    Exiting here instead would strand a pushed pin behind an unarmed
+          #    PR, green - the failure shape this whole task exists to close.
+          if [ "$pushed" = "noop" ]; then
+            if ! git show-ref --verify --quiet "refs/remotes/origin/$branch" ||
+               [ "$(git rev-list --count "origin/main..origin/$branch")" -eq 0 ]; then
+              echo "$branch is not ahead of main; this pin already landed, nothing to open"
+              exit 0
+            fi
+            echo "$branch already carries this pin and is still open; re-arming its PR"
+          fi
           pr_url="$(open_or_reuse_pr "$branch" "cd: deploy-train" \
             "Automated deploy-train. Coalesced component pin bumps; each commit is one component. Auto-merges on a green helmfile diff.")"
         else
