@@ -54,7 +54,7 @@ project:
       # in values/project-tatara/common.yaml. Do not hand-edit;
       # check_pin_coverage.py's check_agent_pins() refuses a floating or absent
       # value here or on the image tag above.
-      skillsRef: v2.5.0
+      skillsRef: v2.6.0
       # 3600s of INACTIVITY is now the STALL PROBE TRIGGER, not a kill
       # deadline (post-O2). The operator anchors on max(turn-started-at,
       # turn-last-activity-at) including subagent activity, and on expiry
