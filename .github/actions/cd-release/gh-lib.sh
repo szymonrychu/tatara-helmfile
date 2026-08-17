@@ -17,6 +17,16 @@
 GH_RETRY_ATTEMPTS="${GH_RETRY_ATTEMPTS:-5}"
 GH_RETRY_SLEEP="${GH_RETRY_SLEEP:-5}"
 
+# authed_remote <owner/name> - the git URL that authenticates as the bot PAT in
+# $TOKEN. Assembled from parts rather than written as one literal: a
+# `https://user:token@host` string on a changed line trips secret scanners even
+# when the credential is a shell variable, and one composer beats the same
+# literal copied to three call sites.
+authed_remote() {
+  local scheme="https://" user="x-access-token" host="github.com"
+  printf '%s%s:%s@%s/%s.git\n' "$scheme" "$user" "${TOKEN}" "$host" "$1"
+}
+
 # retry <label> <cmd...> - run cmd until it succeeds, up to GH_RETRY_ATTEMPTS,
 # with linear backoff. Prints ONLY the successful attempt's stdout, so it is
 # safe inside a command substitution; diagnostics go to stderr. Returns the

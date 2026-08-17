@@ -115,7 +115,7 @@ runs:
         # origin with NO credential at all - so an unauthenticated fetch against
         # a private repo fails every time. That is survivable only while the
         # failure is discarded, and it is about to stop being discarded.
-        git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+        git remote set-url origin "$(authed_remote "$REPO")"
 
         # Both guards below read the tag set: the re-run check and the
         # monotonic next-tag counter. A silently-discarded fetch leaves that
@@ -158,7 +158,7 @@ runs:
         # Push via token URL: checkout's persisted credential is the default
         # GITHUB_TOKEN, read-only on repos with restrictive default workflow
         # permissions (wrapper). Mirrors bump mode's authenticated URL.
-        git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "refs/tags/$next"
+        git push "$(authed_remote "$REPO")" "refs/tags/$next"
 
         echo "version=$next" >> "$GITHUB_OUTPUT"
 
@@ -194,7 +194,7 @@ runs:
         # carries no argv - the clone URL embeds the bot PAT.
         clone_parent() {
           rm -rf "$work"
-          git clone "https://x-access-token:${TOKEN}@github.com/${PARENT}.git" "$work"
+          git clone "$(authed_remote "$PARENT")" "$work"
         }
         if ! retry "git clone ${PARENT}" clone_parent >/dev/null; then
           echo "::error::could not clone ${PARENT}." >&2
