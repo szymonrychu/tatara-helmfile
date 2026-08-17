@@ -47,6 +47,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        shopt -s inherit_errexit
         # Self-hosted ARC runner images lack gh; hosted runners have it.
         if command -v gh >/dev/null 2>&1; then exit 0; fi
         GH_VER=2.63.2
@@ -68,6 +69,8 @@ runs:
         TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
+        shopt -s inherit_errexit
+        source "$ACTION_PATH/gh-lib.sh"
         PY="$(command -v python3 || command -v python)"
 
         # Key the label lookup on the CHECKED-OUT commit, not github.sha. On
@@ -79,17 +82,40 @@ runs:
         SHA="$(git rev-parse HEAD)"
 
         # 1. find the merged PR for the pushed commit and read its semver:* label
-        level="$(gh pr list --search "$SHA" --state merged \
-          --json number,labels \
-          --jq '.[0].labels[].name' \
-          | grep -oE '^semver:(major|minor|patch)$' | head -1 | cut -d: -f2 || true)"
+        #
+        # The read and the verdict are separate on purpose. A single `|| true`
+        # over the whole pipeline (what this was until #622) collapses "the
+        # forge is down" into "there is no semver label", and the second is a
+        # refusal to tag a release that MUST be tagged. Ask python for the
+        # label rather than grepping the JSON: `--jq '.[0].labels[].name'`
+        # makes gh itself exit nonzero when the PR carries no labels, which is
+        # the very case that has to stay distinguishable from a 503.
+        if ! prs="$(retry "gh pr list --search $SHA" \
+            gh pr list --search "$SHA" --state merged --json number,labels)"; then
+          echo "::error::could not read the merged PR for $SHA from the forge; refusing to tag on an unknown label set." >&2
+          exit 1
+        fi
+        level="$(printf '%s' "$prs" | "$PY" -c '
+        import json, sys
+        prs = json.load(sys.stdin)
+        levels = [l["name"].split(":", 1)[1]
+                  for pr in prs[:1] for l in pr["labels"]
+                  if l["name"] in ("semver:major", "semver:minor", "semver:patch")]
+        print(levels[0] if levels else "")')"
         if [ -z "$level" ]; then
           echo "::error::no semver:(major|minor|patch) label on the merged PR for $SHA; refusing to tag." >&2
           exit 1
         fi
         echo "significance level: $level"
 
-        git fetch --tags --force origin >/dev/null 2>&1 || true
+        # Both guards below read the tag set: the re-run check and the
+        # monotonic next-tag counter. A silently-discarded fetch leaves that
+        # set truncated, and the counter then re-cuts a version that already
+        # exists. Retry, keep stderr, and fail rather than compute on it.
+        if ! retry "git fetch --tags" git fetch --tags --force origin >/dev/null; then
+          echo "::error::could not fetch tags from origin; refusing to compute the next tag from a truncated tag set." >&2
+          exit 1
+        fi
 
         # 2. Re-run safety: if a semver tag already points at HEAD, an earlier
         # attempt of THIS release already cut it. Reuse it; do not cut a second.
@@ -143,6 +169,8 @@ runs:
         SELF_REPO: ${{ github.repository }}
       run: |
         set -euo pipefail
+        shopt -s inherit_errexit
+        source "$ACTION_PATH/gh-lib.sh"
         PY="$(command -v python3 || command -v python)"
 
         if [ -z "$PARENT" ] || [ -z "$NEW_VALUE" ]; then
@@ -152,28 +180,21 @@ runs:
 
         component="${SELF_REPO##*/}"
         work="$(mktemp -d)"
-        git clone "https://x-access-token:${TOKEN}@github.com/${PARENT}.git" "$work"
+        # Each attempt clears the destination first: a half-finished clone
+        # leaves a non-empty directory that fails every later attempt with
+        # "already exists and is not an empty directory". The retry label
+        # carries no argv - the clone URL embeds the bot PAT.
+        clone_parent() {
+          rm -rf "$work"
+          git clone "https://x-access-token:${TOKEN}@github.com/${PARENT}.git" "$work"
+        }
+        if ! retry "git clone ${PARENT}" clone_parent >/dev/null; then
+          echo "::error::could not clone ${PARENT}." >&2
+          exit 1
+        fi
         git -C "$work" config user.name "szymonrychu-bot"
         git -C "$work" config user.email "szymonrychu-bot@users.noreply.github.com"
         cd "$work"
-
-        ensure_label() {
-          # EnsureLabel-equivalent: create the managed semver label if missing
-          # (operator owns the canonical colors; this is a safety net).
-          gh label create "$PR_LABEL" --repo "$PARENT" --color 0e8a16 \
-            --description "tatara CD propagation bump" 2>/dev/null || true
-        }
-
-        open_or_reuse_pr() {
-          local branch="$1" title="$2" body="$3" url
-          url="$(gh pr list --repo "$PARENT" --head "$branch" --state open \
-            --json url --jq '.[0].url' || true)"
-          if [ -z "$url" ]; then
-            url="$(gh pr create --repo "$PARENT" --base main --head "$branch" \
-              --title "$title" --body "$body")"
-          fi
-          echo "$url"
-        }
 
         if [ "$PARENT" = "szymonrychu/tatara-helmfile" ]; then
           # === terminal hop: coalesce into the cd/deploy-train branch ===
@@ -182,7 +203,12 @@ runs:
           branch="cd/deploy-train"
           pushed=""
           for attempt in $(seq 1 8); do
-            git fetch origin --prune >/dev/null 2>&1
+            # Not `2>&1 >/dev/null`: this fetch decides which commit the pin is
+            # applied on top of, so its failure must not be invisible.
+            if ! retry "git fetch ${PARENT}" git fetch origin --prune >/dev/null; then
+              echo "::error::could not fetch ${PARENT}; refusing to rebuild the pin on stale refs." >&2
+              exit 1
+            fi
             if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
               git checkout -B "$branch" "origin/$branch"
             else
@@ -236,8 +262,8 @@ runs:
             fi
             echo "$branch already carries this pin and is still open; re-arming its PR"
           fi
-          pr_url="$(open_or_reuse_pr "$branch" "cd: deploy-train" \
-            "Automated deploy-train. Coalesced component pin bumps; each commit is one component. Auto-merges on a green helmfile diff.")"
+          pr_title="cd: deploy-train"
+          pr_body="Automated deploy-train. Coalesced component pin bumps; each commit is one component. Auto-merges on a green helmfile diff."
         else
           # === non-terminal parent (e.g. wrapper): independent per-bump PR ===
           branch="cd/bump-${component}-${NEW_VALUE}"
@@ -250,17 +276,16 @@ runs:
           fi
           git commit -m "cd: bump ${component} to ${NEW_VALUE}"
           git push -f origin "HEAD:$branch"
-          pr_url="$(open_or_reuse_pr "$branch" "cd: bump ${component} to ${NEW_VALUE}" \
-            "Automated dependency bump of ${component} to ${NEW_VALUE}.")"
+          pr_title="cd: bump ${component} to ${NEW_VALUE}"
+          pr_body="Automated dependency bump of ${component} to ${NEW_VALUE}."
         fi
 
-        ensure_label
-        # REST label add: `gh pr edit --add-label` runs a GraphQL query whose
-        # `login` field demands read:org on classic PATs (bot PAT has repo-only
-        # scopes) - the REST issues/labels endpoint needs just `repo`.
-        pr_num="${pr_url##*/}"
-        gh api -X POST "repos/$PARENT/issues/$pr_num/labels" -f "labels[]=$PR_LABEL" >/dev/null
-        gh pr merge "$pr_url" --repo "$PARENT" --auto --squash
+        # The pin is pushed by here. Everything below is what makes it MERGE,
+        # so every step of it is explicitly status-checked: a pushed pin behind
+        # a PR that was never opened, never labelled or never armed is invisible
+        # to the release (bump goes green) and fatal to the deploy (#622).
+        pr_url="$(open_or_reuse_pr "$PARENT" "$branch" "$pr_title" "$pr_body")" || exit 1
+        arm_pr "$PARENT" "$pr_url" "$PR_LABEL" || exit 1
 
         echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
         echo "opened/updated parent PR: $pr_url"
