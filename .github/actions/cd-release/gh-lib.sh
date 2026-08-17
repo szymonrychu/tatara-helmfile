@@ -64,27 +64,54 @@ pr_number() {
 # Distinguishes "the list succeeded and found no PR" (open one) from "the list
 # FAILED" (say so and stop). Prints nothing at all on any failure path, so a
 # caller can never mistake an empty url for a real one.
+# _list_open_pr <repo> <branch> - print the open PR url for a branch, or
+# nothing. `// empty` so a no-match is an empty string rather than the literal
+# "null", which would sail past an `[ -z ]` guard and be treated as a url.
+_list_open_pr() {
+  retry "gh pr list $1#$2" \
+    gh pr list --repo "$1" --head "$2" --state open --json url --jq '.[0].url // empty'
+}
+
 open_or_reuse_pr() {
   local repo="$1" branch="$2" title="$3" body="$4" url=""
 
-  if ! url="$(retry "gh pr list ${repo}#${branch}" \
-      gh pr list --repo "$repo" --head "$branch" --state open --json url --jq '.[0].url')"; then
+  if ! url="$(_list_open_pr "$repo" "$branch")"; then
     echo "::error::could not list open PRs for ${repo}#${branch}; refusing to assume none exists." >&2
     return 1
   fi
 
   if [ -z "$url" ]; then
-    if ! url="$(retry "gh pr create ${repo}#${branch}" \
+    if url="$(retry "gh pr create ${repo}#${branch}" \
         gh pr create --repo "$repo" --base main --head "$branch" --title "$title" --body "$body")"; then
-      echo "::error::could not open a PR for ${repo}#${branch}; the pushed pin would be stranded behind no PR." >&2
-      return 1
+      # gh prints the url last; anything before it is chatter.
+      url="$(printf '%s\n' "$url" | tail -n 1)"
+    else
+      # `gh pr create` is NOT idempotent. During a partial outage the POST can
+      # land server-side while the client sees a timeout, and every retry then
+      # gets `422 already exists`. Re-read before declaring there is no PR -
+      # otherwise this reports "no PR exists" about one that does, which is the
+      # write-side mirror of the read-side defect this lib exists to close.
+      if ! url="$(_list_open_pr "$repo" "$branch")" || [ -z "$url" ]; then
+        echo "::error::could not open a PR for ${repo}#${branch}; the pushed pin would be stranded behind no PR." >&2
+        return 1
+      fi
+      echo "gh pr create failed but ${repo}#${branch} already has an open PR; reusing ${url}" >&2
     fi
-    # gh prints the url last; anything before it is chatter.
-    url="$(printf '%s\n' "$url" | tail -n 1)"
   fi
 
   pr_number "$url" >/dev/null || return 1
   printf '%s\n' "$url"
+}
+
+# _pr_state <repo> <pr_url> - print MERGED, ARMED, or nothing. One read for
+# both facts: an open PR with no autoMergeRequest and a MERGED one look
+# identical through that field alone, and they are opposite outcomes.
+_pr_state() {
+  retry "read state $1 $2" \
+    gh pr view "$2" --repo "$1" --json state,autoMergeRequest \
+    --jq 'if .state == "MERGED" then "MERGED"
+          elif (.autoMergeRequest // null) == null then ""
+          else "ARMED" end'
 }
 
 # arm_pr <repo> <pr_url> <label> - label the PR and arm auto-merge, then READ
@@ -110,19 +137,34 @@ arm_pr() {
 
   if ! retry "arm auto-merge ${repo}#${num}" \
       gh pr merge "$url" --repo "$repo" --auto --squash >/dev/null; then
+    # An already-merged PR refuses --auto. cd/deploy-train is shared by six
+    # repos releasing concurrently and the pin this run just pushed is often
+    # what turns the helmfile diff green, so the PR really can merge while this
+    # step is arming it. That is the SUCCESS path; check before failing it.
+    if [ "$(_pr_state "$repo" "$url")" = MERGED ]; then
+      echo "${url} merged while this run was arming it; nothing left to arm"
+      return 0
+    fi
     echo "::error::could not arm auto-merge on ${url}." >&2
     return 1
   fi
 
-  if ! armed="$(retry "read auto-merge state ${repo}#${num}" \
-      gh pr view "$url" --repo "$repo" --json autoMergeRequest --jq '.autoMergeRequest.enabledAt // empty')"; then
+  if ! armed="$(_pr_state "$repo" "$url")"; then
     echo "::error::could not read the auto-merge state back from ${url}." >&2
     return 1
   fi
-  if [ -z "$armed" ]; then
-    echo "::error::${url} is open but auto-merge is NOT armed; it would sit there forever." >&2
-    return 1
-  fi
-
-  echo "armed auto-merge on ${url} (enabledAt ${armed})"
+  case "$armed" in
+    MERGED)
+      # GitHub CLEARS autoMergeRequest on merge, so reading only that field
+      # reports "not armed; it would sit there forever" about a merged PR.
+      echo "${url} merged while this run was arming it; nothing left to arm"
+      ;;
+    ARMED)
+      echo "armed auto-merge on ${url}"
+      ;;
+    *)
+      echo "::error::${url} is open but auto-merge is NOT armed; it would sit there forever." >&2
+      return 1
+      ;;
+  esac
 }

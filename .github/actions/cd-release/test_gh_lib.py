@@ -168,6 +168,30 @@ def test_never_prints_an_empty_or_bogus_url(stub, name, list_plan, create_plan):
     assert r.stdout.strip() == "", name
 
 
+def test_a_create_that_actually_landed_is_not_reported_as_no_pr(stub):
+    """`gh pr create` is NOT idempotent.
+
+    During a partial outage the POST can succeed server-side while the client
+    sees a timeout, and every retry then gets `422 already exists`. Failing
+    there reports "the PR does not exist" about a PR that does - the write-side
+    mirror of the read-side defect this whole lib exists to close.
+    """
+    stub.plan("pr-list", ["0", f"0 {URL}"])
+    stub.plan("pr-create", ["1", "1", "1"])
+    r = stub.run(f"{OPEN}\n")
+    assert r.returncode == 0
+    assert r.stdout.strip() == URL
+
+
+def test_a_create_that_failed_for_real_still_fails(stub):
+    """The re-list must not paper over a create that genuinely opened nothing."""
+    stub.plan("pr-list", ["0", "0", "0"])
+    stub.plan("pr-create", ["1", "1", "1"])
+    r = stub.run(f"{OPEN}\n")
+    assert r.returncode != 0
+    assert r.stdout.strip() == ""
+
+
 # --- the caller contract ----------------------------------------------------
 
 
@@ -237,7 +261,7 @@ def test_pr_number_refuses_anything_that_is_not_a_pr_url(stub, url):
 # --- arm_pr -----------------------------------------------------------------
 
 ARM = f'arm_pr szymonrychu/tatara-helmfile "{URL}" semver:patch'
-ARMED = "0 2026-08-17T15:49:02Z"
+ARMED = "0 ARMED"
 
 
 def test_arms_and_confirms_by_reading_the_state_back(stub):
@@ -284,6 +308,23 @@ def test_an_arm_that_never_succeeds_fails_the_step(stub):
     stub.plan("pr-view", [ARMED])
     r = stub.run(f"{ARM}\n")
     assert r.returncode != 0
+
+
+def test_a_pr_that_merged_mid_run_is_a_success_not_a_stranded_pin(stub):
+    """cd/deploy-train is shared by six repos releasing concurrently.
+
+    The pin this run just pushed is often what turns the helmfile diff green,
+    so the PR can merge while this step is still arming it. GitHub then CLEARS
+    autoMergeRequest, and reading it back reports "auto-merge is NOT armed; it
+    would sit there forever" about a PR that has already merged - failing the
+    release on the success path, and skipping verify-pin behind it.
+    """
+    stub.plan("pr-merge", ["1"])
+    stub.plan("pr-view", ["0 MERGED"])
+    r = stub.run(f"{ARM}\n")
+    assert r.returncode == 0
+    assert "merged" in (r.stdout + r.stderr).lower()
+
 
 
 def test_label_create_already_exists_is_not_fatal(stub):
@@ -394,9 +435,19 @@ def test_a_lookalike_label_is_not_mistaken_for_a_semver_level(stub):
 
 
 def test_every_step_that_sets_errexit_also_inherits_it_into_substitutions():
-    """`set -e` alone does not survive `x="$(f)"`. That is the whole defect."""
-    text = ACTION.read_text(encoding="utf-8")
-    assert text.count("set -euo pipefail") == text.count("shopt -s inherit_errexit")
+    """`set -e` alone does not survive `x="$(f)"`. That is the whole defect.
+
+    Pairwise, not by count: two `shopt`s in one step and none in another sums
+    to the same total and leaves a step running with errexit off inside every
+    command substitution it makes.
+    """
+    lines = ACTION.read_text(encoding="utf-8").splitlines()
+    setters = [i for i, ln in enumerate(lines) if ln.strip() == "set -euo pipefail"]
+    assert setters, "no step sets errexit at all"
+    for i in setters:
+        assert lines[i + 1].strip() == "shopt -s inherit_errexit", (
+            f"line {i + 1} sets errexit without inheriting it: {lines[i + 1].strip()!r}"
+        )
 
 
 def test_the_action_defines_no_forge_helpers_of_its_own():
@@ -408,7 +459,16 @@ def test_the_action_defines_no_forge_helpers_of_its_own():
 
 
 def test_the_action_never_swallows_a_forge_read_with_or_true():
-    """`|| true` on a read is how a 503 became "no semver label; refusing to tag"."""
+    """`|| true` on a read is how a 503 became "no semver label; refusing to tag".
+
+    `|| :` and `|| echo ...` swallow a status just as completely, so the guard
+    covers the whole family rather than the one spelling that caused #622.
+    """
+    swallows = ("|| true", "|| :", "|| echo", "||true")
     for line in ACTION.read_text(encoding="utf-8").splitlines():
-        if "|| true" in line and ("gh " in line or "git fetch" in line):
-            raise AssertionError(f"forge read swallowed by `|| true`: {line.strip()}")
+        code = line.strip()
+        if code.startswith("#"):
+            continue
+        reads_forge = "gh " in code or "git fetch" in code or "git clone" in code
+        if reads_forge and any(s in code for s in swallows):
+            raise AssertionError(f"forge read swallowed: {code}")

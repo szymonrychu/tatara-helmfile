@@ -86,10 +86,11 @@ runs:
         # The read and the verdict are separate on purpose. A single `|| true`
         # over the whole pipeline (what this was until #622) collapses "the
         # forge is down" into "there is no semver label", and the second is a
-        # refusal to tag a release that MUST be tagged. Ask python for the
-        # label rather than grepping the JSON: `--jq '.[0].labels[].name'`
-        # makes gh itself exit nonzero when the PR carries no labels, which is
-        # the very case that has to stay distinguishable from a 503.
+        # refusal to tag a release that MUST be tagged. The whole JSON is
+        # fetched and parsed by python rather than filtered with `--jq
+        # '.[0].labels[].name'`, because that filter makes gh exit nonzero when
+        # no PR is found at all - indistinguishable, at the exit status, from
+        # the 503 this is trying to tell apart.
         if ! prs="$(retry "gh pr list --search $SHA" \
             gh pr list --search "$SHA" --state merged --json number,labels)"; then
           echo "::error::could not read the merged PR for $SHA from the forge; refusing to tag on an unknown label set." >&2
@@ -291,7 +292,20 @@ runs:
         # so every step of it is explicitly status-checked: a pushed pin behind
         # a PR that was never opened, never labelled or never armed is invisible
         # to the release (bump goes green) and fatal to the deploy (#622).
-        pr_url="$(open_or_reuse_pr "$PARENT" "$branch" "$pr_title" "$pr_body")" || exit 1
+        if ! pr_url="$(open_or_reuse_pr "$PARENT" "$branch" "$pr_title" "$pr_body")"; then
+          # The PR can merge between the branch check above and the list/create
+          # inside open_or_reuse_pr, and the forge then refuses to create one
+          # ("No commits between main and $branch"). A merged branch is the
+          # SUCCESS state; re-read it rather than fail the release on it. Same
+          # discriminator as the no-op guard: level with main, or gone.
+          if retry "git fetch ${PARENT}" git fetch origin --prune >/dev/null &&
+             { ! git show-ref --verify --quiet "refs/remotes/origin/$branch" ||
+               [ "$(git rev-list --count "origin/main..origin/$branch")" -eq 0 ]; }; then
+            echo "::notice::${branch} merged while this run was opening its PR; the pin has landed."
+            exit 0
+          fi
+          exit 1
+        fi
         arm_pr "$PARENT" "$pr_url" "$PR_LABEL" || exit 1
 
         echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
