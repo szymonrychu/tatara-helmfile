@@ -312,12 +312,12 @@ def test_retry_gives_up_after_the_configured_attempts(stub):
 
 
 def test_retry_does_not_leak_the_command_it_runs_into_the_log(stub):
-    """Labels are printed, argv is not: argv carries the token in git URLs."""
+    """Labels are printed, argv is not: argv carries the PAT in the clone URL."""
     stub.plan("pr-view", ["1", "1", "1"])
     r = stub.run(
-        'retry "gh pr view" gh pr view --json url --secret hunter2 || true\n'
+        'retry "gh pr view" gh pr view --json url --marker ARGV-MUST-NOT-APPEAR || true\n'
     )
-    assert "hunter2" not in r.stdout + r.stderr
+    assert "ARGV-MUST-NOT-APPEAR" not in r.stdout + r.stderr
 
 
 # --- mode=tag: the semver label read ----------------------------------------
