@@ -108,6 +108,14 @@ runs:
         fi
         echo "significance level: $level"
 
+        # Authenticate origin BEFORE the fetch, not just before the push. The
+        # wrapper checks out with persist-credentials: false (its tag push needs
+        # the PAT to win over checkout's read-only extraheader), which leaves
+        # origin with NO credential at all - so an unauthenticated fetch against
+        # a private repo fails every time. That is survivable only while the
+        # failure is discarded, and it is about to stop being discarded.
+        git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+
         # Both guards below read the tag set: the re-run check and the
         # monotonic next-tag counter. A silently-discarded fetch leaves that
         # set truncated, and the counter then re-cuts a version that already
@@ -140,8 +148,7 @@ runs:
         next="$("$PY" "$ACTION_PATH/semver-bump.py" "$latest" "$level")"
         echo "latest=${latest:-<seed>} level=$level next=$next"
 
-        # 4. push the tag (bot-authored, deterministic remote auth)
-        git remote set-url origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+        # 4. push the tag (bot-authored; origin was authenticated above)
         if git rev-parse -q --verify "refs/tags/$next" >/dev/null; then
           echo "tag $next already exists locally; skipping create"
         else
