@@ -212,9 +212,10 @@ project:
             - internet
         issueScan:
           maxPerRepo: 1
-          # Stretched hourly -> every 4h (token conservation); webhooks cover real
-          # issue activity, so the backstop scan can be less frequent.
-          schedule: 0 */4 * * *
+          # B.4 sweep: the sole scheduled intake mechanism, not purely a
+          # missed-webhook backstop. Tightened from every-4h to every-10min;
+          # see the PR for the cost/safety analysis.
+          schedule: "*/10 * * * *"
         # Project refiner: periodic grooming of open + recently-closed issues
         # across all repos - closes duplicates and already-implemented proposals,
         # tightens scope, splits too-broad issues, files followups. It USED to
@@ -232,8 +233,13 @@ project:
         #
         # Minute 58 continues the deterministic 17-minute phase stagger the
         # per-repo reingestSchedules below already use (33 8, 50 8, 7 9, 24 9,
-        # 41 9 -> 58), so an upgrade tick never lands on a reingest run, and it
-        # keeps clear of minute 0 where issueScan fires on the same */4 hours.
+        # 41 9 -> 58), so an upgrade tick never lands on a reingest run.
+        # issueScan now fires every 10 minutes, so minute 58 no longer avoids
+        # it the way it did at */4h - but that is fine: issueScan and upgrade
+        # both mint inside the same serialized per-Project reconcile
+        # (MaxConcurrentReconciles: 1), so a simultaneous tick is never
+        # concurrent and there is no lock or counter shared between them to
+        # race.
         #
         # maxOpenUpgrades is EXPLICIT, never left to the operator's default of 1:
         # a kubebuilder default is applied on WRITE and never retroactively, so

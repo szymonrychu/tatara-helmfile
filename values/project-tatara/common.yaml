@@ -199,9 +199,10 @@ project:
             - internet
         issueScan:
           maxPerRepo: 1
-          # Stretched hourly -> every 4h (token conservation); webhooks cover real
-          # issue activity, so the backstop scan can be less frequent.
-          schedule: 0 */4 * * *
+          # B.4 sweep: the sole scheduled intake mechanism, not purely a
+          # missed-webhook backstop. Tightened from every-4h to every-10min;
+          # see the PR for the cost/safety analysis.
+          schedule: "*/10 * * * *"
         # Project refiner: periodic grooming of open + recently-closed issues
         # across all repos - closes duplicates and already-implemented proposals,
         # tightens scope, splits too-broad issues, files followups. It USED to
