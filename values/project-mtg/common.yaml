@@ -303,7 +303,10 @@ project:
             - internet
         issueScan:
           maxPerRepo: 1
-          schedule: 0 */4 * * *
+          # B.4 sweep: the sole scheduled intake mechanism, not purely a
+          # missed-webhook backstop. Tightened from every-4h to every-10min;
+          # see the PR for the cost/safety analysis.
+          schedule: "*/10 * * * *"
         # Project refiner, on its own cron since brainstorm stopped having one.
         # Cron is evaluated in UTC: robfig's SpecSchedule.Next does
         # `if loc == time.Local { loc = t.Location() }`, so a bare
@@ -319,9 +322,12 @@ project:
         # paper-format ban announcements and the weekend result dumps this
         # project reacts to are both settled by Monday night.
         #
-        # Hour 7 is clear of everything else here: issueScan fires on the */4
-        # hours and the mtg-decks reingest at 09:58, so a refresh never races the
-        # ingest that feeds its own code-graph reads.
+        # Hour 7 keeps clear of the mtg-decks reingest at 09:58, so a refresh
+        # never races the ingest that feeds its own code-graph reads.
+        # issueScan now fires every 10 minutes rather than on the */4 hours,
+        # so it no longer avoids hour 7 specifically - that is harmless,
+        # though: issueScan and upgrade both mint inside the same serialized
+        # per-Project reconcile, so a coincident tick is never concurrent.
         #
         # EVERY deck gets a refresh pass each week, not one deck per week. The
         # repo carries three (burn-mono-red, living-end, prison-tron), so the
@@ -343,10 +349,11 @@ project:
         # the correct outcome, not a failure - the prompt requires the drift
         # measurement in the decline reason.
         #
-        # Hour 7 is clear of everything else here: issueScan fires on the */4
-        # hours and the mtg-decks reingest at 09:58, so a refresh never races
-        # the ingest that feeds its own code-graph reads. Hours 8 and 9 keep
-        # that property.
+        # Hour 7 keeps clear of the mtg-decks reingest at 09:58, so a refresh
+        # never races the ingest that feeds its own code-graph reads. Hours 8
+        # and 9 keep that property. issueScan now fires every 10 minutes
+        # rather than on the */4 hours, so this no longer says anything about
+        # issueScan - see the note above.
         #
         # maxOpenUpgrades is EXPLICIT rather than the operator's default: a
         # kubebuilder default is applied on WRITE and never retroactively, so
