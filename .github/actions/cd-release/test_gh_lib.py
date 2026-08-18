@@ -711,10 +711,11 @@ def test_the_action_never_swallows_a_forge_read_with_or_true():
     covers the whole family rather than the one spelling that caused #622.
     """
     swallows = ("|| true", "|| :", "|| echo", "||true")
-    for line in ACTION.read_text(encoding="utf-8").splitlines():
-        code = line.strip()
-        if code.startswith("#"):
-            continue
-        reads_forge = "gh " in code or "git fetch" in code or "git clone" in code
-        if reads_forge and any(s in code for s in swallows):
-            raise AssertionError(f"forge read swallowed: {code}")
+    for path in (ACTION, LIB):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            code = line.strip()
+            if code.startswith("#"):
+                continue
+            reads_forge = "gh " in code or "git fetch" in code or "git clone" in code
+            if reads_forge and any(s in code for s in swallows):
+                raise AssertionError(f"{path.name}: forge read swallowed: {code}")
