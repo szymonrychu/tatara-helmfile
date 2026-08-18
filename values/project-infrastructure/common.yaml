@@ -52,7 +52,7 @@ project:
       effortByKind:
         clarify: low
         review: medium
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.5.0
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.5.1
       # Per-Task cumulative output-token runaway backstop for the turn-uncapped
       # implement/issueLifecycle kinds. TUNE from the component-6 per-kind token
       # telemetry; this is a safety ceiling, not a cost lever.
@@ -62,7 +62,7 @@ project:
       # / component 4b). CD-MANAGED as of #397 by the skills release: see the
       # note in values/project-tatara/common.yaml. Do not hand-edit;
       # check_pin_coverage.py's check_agent_pins() refuses a floating or absent value.
-      skillsRef: v2.5.0
+      skillsRef: v2.6.0
       # 3600s of INACTIVITY is now the STALL PROBE TRIGGER, not a kill
       # deadline (post-O2). The operator anchors on max(turn-started-at,
       # turn-last-activity-at) including subagent activity, and on expiry
