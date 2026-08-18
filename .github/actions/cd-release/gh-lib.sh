@@ -1,0 +1,252 @@
+# shellcheck shell=bash
+# Forge helpers for the cd-release composite action. Sourced via $ACTION_PATH,
+# the same way apply-pins.py is invoked. Covered by test_gh_lib.py.
+#
+# Every function returns an EXPLICIT status and never leans on `set -e` to
+# propagate a failure, because `set -e` does not survive the one place that
+# matters: bash unsets errexit inside a command substitution unless
+# `inherit_errexit` is on, so `pr_url="$(open_or_reuse_pr ...)"` runs its body
+# with errexit OFF. On 2026-08-17 (run 32035597231 attempt 4) that turned a
+# transient 503 from `gh pr create` into an EMPTY url and a zero exit: the pin
+# was already pushed to cd/deploy-train, no PR was opened, nothing was armed,
+# and the deploy cascade stopped dead until a human opened the PR by hand.
+#
+# The rule that falls out of it, and that the tests pin: a forge read that
+# FAILED must never be reported as "the thing is not there".
+
+GH_RETRY_ATTEMPTS="${GH_RETRY_ATTEMPTS:-5}"
+GH_RETRY_SLEEP="${GH_RETRY_SLEEP:-5}"
+
+# Git authentication for the bot PAT in $TOKEN.
+#
+# The credential is handed to git OUT OF BAND, by a credential helper, and the
+# remote URL stays the plain `https://github.com/<owner>/<name>.git`.
+#
+# It used to ride in the URL itself, as basic-auth userinfo in front of the
+# host - written first as one literal, then assembled from parts to get past
+# the scanner. Both forms were wrong. GitGuardian blocked the PR on both, and
+# it was right to: a credential in a remote URL is persisted into
+# `.git/config`, echoed by `git remote -v`, copied into reflogs, printed
+# verbatim in git's own transport errors, and carried in argv for the
+# `git push <url>` form. Five places a token leaks from, and composing the
+# string removed none of them.
+#
+# The helper keeps it in the process environment only. The config, the URLs and
+# argv all carry the LITERAL string `$TOKEN`; git expands it in the helper's own
+# shell, at credential time, on the one code path that needs it.
+GIT_CRED_HELPER='!f() { echo username=x-access-token; echo "password=$TOKEN"; }; f'
+
+# require_token - the helper emits `password=` when $TOKEN is empty, and git
+# takes that as a COMPLETE credential: the push then 403s having authenticated
+# as nobody, with nothing in the log pointing at the missing input. `set -u`
+# cannot catch it, because bash never dereferences $TOKEN - only the helper's
+# own shell does, at credential time. Composite actions do not enforce
+# `required: true` at runtime either.
+require_token() {
+  if [ -z "${TOKEN:-}" ]; then
+    echo "::error::cd-release: TOKEN is empty - the bot PAT never reached the action." >&2
+    return 1
+  fi
+}
+
+# authenticate_origin <owner/name> - point THIS checkout's origin at the plain
+# URL and make the bot PAT the credential git actually uses for it.
+#
+# Two things have to be cleared first, and both win SILENTLY - no failure, just
+# the wrong identity and a 403 that reads like a scope problem:
+#
+#   1. `credential.helper` is MULTI-VALUED. Git runs system, then global, then
+#      local, and stops at the FIRST helper that answers with a username AND a
+#      password. `--local` is LAST in that list, not an override, so a global
+#      github.com helper - the agent image ships one - masks this one entirely.
+#      An empty value resets the list; that is git's documented idiom.
+#   2. `actions/checkout` with the default persist-credentials writes
+#      `http.https://github.com/.extraheader = AUTHORIZATION: basic ...`. Git
+#      sends it on every request, so the server answers 200/403 rather than
+#      401 - and git only consults a credential helper on a 401. The header
+#      beats the helper, and the push lands as the default GITHUB_TOKEN, which
+#      is read-only wherever default workflow permissions are restrictive.
+#
+# The userinfo URL this replaced was immune to (1) by accident: a URL carrying
+# both user and password IS a complete credential, so git consulted no helper
+# at all. It lost to (2) just the same.
+#
+# `--local` still matters for what it does control: the ARC runner is shared,
+# and a `--global` helper would outlive the job.
+authenticate_origin() {
+  require_token || return 1
+  git remote set-url origin "https://github.com/$1.git" || return 1
+  # Absent is the normal case and answers 5; a config that cannot be written
+  # fails loudly on the --add below.
+  git config --local --unset-all "http.https://github.com/.extraheader" || true
+  git config --local --unset-all credential.helper || true
+  git config --local --add credential.helper "" || return 1
+  git config --local --add credential.helper "$GIT_CRED_HELPER" || return 1
+}
+
+# clone_authed <owner/name> <dir> - clone a DIFFERENT repo than the checkout.
+# `git clone --config` applies the helper before the initial fetch AND leaves it
+# in the new repo's config, so the clone and every later fetch/push against it
+# authenticate through the same path. The empty value first is the same list
+# reset as above: a fresh clone's local config is still last behind the runner's
+# global helper. No extraheader to clear here - nothing has checked this one out.
+clone_authed() {
+  require_token || return 1
+  git clone --config credential.helper= \
+    --config "credential.helper=$GIT_CRED_HELPER" \
+    "https://github.com/$1.git" "$2"
+}
+
+# retry <label> <cmd...> - run cmd until it succeeds, up to GH_RETRY_ATTEMPTS,
+# with linear backoff. Prints ONLY the successful attempt's stdout, so it is
+# safe inside a command substitution; diagnostics go to stderr. Returns the
+# last attempt's status.
+#
+# <label> is what gets logged - never argv. Nothing this wraps carries the
+# credential any more (it comes from the helper above, not from a URL), but the
+# rule stands: argv is exactly where a token reappears the moment anyone puts
+# basic-auth userinfo back into a remote.
+retry() {
+  local label="$1"; shift
+  local attempt=1 rc=0 out=""
+  while :; do
+    # rc is read in the else branch on purpose: an `if` whose condition fails
+    # and which has no else returns 0, so `rc=$?` after `fi` reads 0 and every
+    # exhausted retry would report success.
+    if out="$("$@")"; then
+      [ -n "$out" ] && printf '%s\n' "$out"
+      return 0
+    else
+      rc=$?
+    fi
+    if [ "$attempt" -ge "$GH_RETRY_ATTEMPTS" ]; then
+      echo "::warning::${label}: failed after ${attempt} attempts (status ${rc})" >&2
+      return "$rc"
+    fi
+    echo "${label}: status ${rc}, retrying (${attempt}/${GH_RETRY_ATTEMPTS})" >&2
+    sleep "$(( GH_RETRY_SLEEP * attempt ))"
+    attempt=$(( attempt + 1 ))
+  done
+}
+
+# pr_number <url> - print the trailing PR number. Fails on anything that is not
+# a pull-request URL, which is what `pr_num="${pr_url##*/}"` on an empty url did
+# not do: it POSTed `issues//labels` and 404'd.
+pr_number() {
+  local url="${1-}"
+  if [[ ! "$url" =~ ^https://[^[:space:]]+/pull/([0-9]+)$ ]]; then
+    echo "::error::not a pull-request URL: '${url}'" >&2
+    return 1
+  fi
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+# open_or_reuse_pr <repo> <branch> <title> <body> - print the PR url.
+#
+# Distinguishes "the list succeeded and found no PR" (open one) from "the list
+# FAILED" (say so and stop). Prints nothing at all on any failure path, so a
+# caller can never mistake an empty url for a real one.
+# _list_open_pr <repo> <branch> - print the open PR url for a branch, or
+# nothing. `// empty` so a no-match is an empty string rather than the literal
+# "null", which would sail past an `[ -z ]` guard and be treated as a url.
+_list_open_pr() {
+  retry "gh pr list $1#$2" \
+    gh pr list --repo "$1" --head "$2" --state open --json url --jq '.[0].url // empty'
+}
+
+open_or_reuse_pr() {
+  local repo="$1" branch="$2" title="$3" body="$4" url=""
+
+  if ! url="$(_list_open_pr "$repo" "$branch")"; then
+    echo "::error::could not list open PRs for ${repo}#${branch}; refusing to assume none exists." >&2
+    return 1
+  fi
+
+  if [ -z "$url" ]; then
+    if url="$(retry "gh pr create ${repo}#${branch}" \
+        gh pr create --repo "$repo" --base main --head "$branch" --title "$title" --body "$body")"; then
+      # gh prints the url last; anything before it is chatter.
+      url="$(printf '%s\n' "$url" | tail -n 1)"
+    else
+      # `gh pr create` is NOT idempotent. During a partial outage the POST can
+      # land server-side while the client sees a timeout, and every retry then
+      # gets `422 already exists`. Re-read before declaring there is no PR -
+      # otherwise this reports "no PR exists" about one that does, which is the
+      # write-side mirror of the read-side defect this lib exists to close.
+      if ! url="$(_list_open_pr "$repo" "$branch")" || [ -z "$url" ]; then
+        echo "::error::could not open a PR for ${repo}#${branch}; the pushed pin would be stranded behind no PR." >&2
+        return 1
+      fi
+      echo "gh pr create failed but ${repo}#${branch} already has an open PR; reusing ${url}" >&2
+    fi
+  fi
+
+  pr_number "$url" >/dev/null || return 1
+  printf '%s\n' "$url"
+}
+
+# _pr_state <repo> <pr_url> - print MERGED, ARMED, or nothing. One read for
+# both facts: an open PR with no autoMergeRequest and a MERGED one look
+# identical through that field alone, and they are opposite outcomes.
+_pr_state() {
+  retry "read state $1 $2" \
+    gh pr view "$2" --repo "$1" --json state,autoMergeRequest \
+    --jq 'if .state == "MERGED" then "MERGED"
+          elif (.autoMergeRequest // null) == null then ""
+          else "ARMED" end'
+}
+
+# arm_pr <repo> <pr_url> <label> - label the PR and arm auto-merge, then READ
+# THE STATE BACK. `gh pr merge --auto` exiting 0 is not evidence that anything
+# is armed, and an unarmed PR never merges: the writer has to assert the same
+# observable that verify-pin reads, or it reports success on a dead cascade.
+arm_pr() {
+  local repo="$1" url="${2-}" label="$3" num armed
+  num="$(pr_number "$url")" || return 1
+
+  # EnsureLabel-equivalent safety net; the operator owns the canonical colors
+  # and the label almost always already exists, so failure here is expected.
+  gh label create "$label" --repo "$repo" --color 0e8a16 \
+    --description "tatara CD propagation bump" >/dev/null 2>&1 || true
+
+  # REST, not `gh pr edit --add-label`: that runs a GraphQL query whose `login`
+  # field demands read:org on classic PATs, and the bot PAT is repo-only.
+  if ! retry "label ${repo}#${num}" \
+      gh api -X POST "repos/${repo}/issues/${num}/labels" -f "labels[]=${label}" >/dev/null; then
+    echo "::error::could not label ${url}; refusing to arm an unlabelled PR (CI cuts the tag from the label)." >&2
+    return 1
+  fi
+
+  if ! retry "arm auto-merge ${repo}#${num}" \
+      gh pr merge "$url" --repo "$repo" --auto --squash >/dev/null; then
+    # An already-merged PR refuses --auto. cd/deploy-train is shared by six
+    # repos releasing concurrently and the pin this run just pushed is often
+    # what turns the helmfile diff green, so the PR really can merge while this
+    # step is arming it. That is the SUCCESS path; check before failing it.
+    if [ "$(_pr_state "$repo" "$url")" = MERGED ]; then
+      echo "${url} merged while this run was arming it; nothing left to arm"
+      return 0
+    fi
+    echo "::error::could not arm auto-merge on ${url}." >&2
+    return 1
+  fi
+
+  if ! armed="$(_pr_state "$repo" "$url")"; then
+    echo "::error::could not read the auto-merge state back from ${url}." >&2
+    return 1
+  fi
+  case "$armed" in
+    MERGED)
+      # GitHub CLEARS autoMergeRequest on merge, so reading only that field
+      # reports "not armed; it would sit there forever" about a merged PR.
+      echo "${url} merged while this run was arming it; nothing left to arm"
+      ;;
+    ARMED)
+      echo "armed auto-merge on ${url}"
+      ;;
+    *)
+      echo "::error::${url} is open but auto-merge is NOT armed; it would sit there forever." >&2
+      return 1
+      ;;
+  esac
+}
