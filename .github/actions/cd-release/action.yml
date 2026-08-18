@@ -115,7 +115,7 @@ runs:
         # origin with NO credential at all - so an unauthenticated fetch against
         # a private repo fails every time. That is survivable only while the
         # failure is discarded, and it is about to stop being discarded.
-        git remote set-url origin "$(authed_remote "$REPO")"
+        authenticate_origin "$REPO"
 
         # Both guards below read the tag set: the re-run check and the
         # monotonic next-tag counter. A silently-discarded fetch leaves that
@@ -155,10 +155,12 @@ runs:
         else
           git tag "$next"
         fi
-        # Push via token URL: checkout's persisted credential is the default
-        # GITHUB_TOKEN, read-only on repos with restrictive default workflow
-        # permissions (wrapper). Mirrors bump mode's authenticated URL.
-        git push "$(authed_remote "$REPO")" "refs/tags/$next"
+        # Push through origin, which authenticate_origin above pointed at the
+        # plain URL and backed with the bot PAT's credential helper. Checkout's
+        # own persisted credential is the default GITHUB_TOKEN, read-only on
+        # repos with restrictive default workflow permissions (wrapper), so the
+        # helper is what makes this push land.
+        git push origin "refs/tags/$next"
 
         echo "version=$next" >> "$GITHUB_OUTPUT"
 
@@ -190,11 +192,13 @@ runs:
         work="$(mktemp -d)"
         # Each attempt clears the destination first: a half-finished clone
         # leaves a non-empty directory that fails every later attempt with
-        # "already exists and is not an empty directory". The retry label
-        # carries no argv - the clone URL embeds the bot PAT.
+        # "already exists and is not an empty directory". clone_authed carries
+        # the bot PAT in a credential helper, never in the URL, and the helper
+        # lands in the clone's config so the fetches and pushes below authenticate
+        # against $PARENT too.
         clone_parent() {
           rm -rf "$work"
-          git clone "$(authed_remote "$PARENT")" "$work"
+          clone_authed "$PARENT" "$work"
         }
         if ! retry "git clone ${PARENT}" clone_parent >/dev/null; then
           echo "::error::could not clone ${PARENT}." >&2

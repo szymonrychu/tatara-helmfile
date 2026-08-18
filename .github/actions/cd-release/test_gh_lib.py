@@ -77,22 +77,40 @@ class Stub:
             return got
         return [ln for ln in got if ln.split(" ", 1)[0] == key]
 
-    def run(self, snippet):
+    def stub_git(self):
+        """Put a git on PATH that only records its argv, and log the call."""
+        git = self.bin / "git"
+        git.write_text(
+            '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$GH_STUB_DIR/git.log"\n',
+            encoding="utf-8",
+        )
+        git.chmod(0o755)
+
+    def git_argv(self):
+        log = self.dir / "git.log"
+        return log.read_text(encoding="utf-8") if log.exists() else ""
+
+    def run(self, snippet, env=None):
         """Run `snippet` in a script shaped exactly like an action.yml step."""
         script = (
             "set -euo pipefail\n"
             "shopt -s inherit_errexit\n"
             f'source "{LIB}"\n' + textwrap.dedent(snippet)
         )
-        env = {
+        run_env = {
             **os.environ,
             "PATH": f"{self.bin}:{os.environ['PATH']}",
             "GH_STUB_DIR": str(self.dir),
             "GH_RETRY_ATTEMPTS": "3",
             "GH_RETRY_SLEEP": "0",
+            **(env or {}),
         }
         return subprocess.run(
-            ["bash", "-c", script], capture_output=True, text=True, env=env, check=False
+            ["bash", "-c", script],
+            capture_output=True,
+            text=True,
+            env=run_env,
+            check=False,
         )
 
 
@@ -353,12 +371,131 @@ def test_retry_gives_up_after_the_configured_attempts(stub):
 
 
 def test_retry_does_not_leak_the_command_it_runs_into_the_log(stub):
-    """Labels are printed, argv is not: argv carries the PAT in the clone URL."""
+    """Labels are printed, argv is not.
+
+    Nothing this wraps carries the credential any more - it comes from a
+    credential helper, not from the URL - but the rule stands, because argv is
+    exactly where the token reappears the moment anyone puts basic-auth
+    userinfo back into a remote.
+    """
     stub.plan("pr-view", ["1", "1", "1"])
     r = stub.run(
         'retry "gh pr view" gh pr view --json url --marker ARGV-MUST-NOT-APPEAR || true\n'
     )
     assert "ARGV-MUST-NOT-APPEAR" not in r.stdout + r.stderr
+
+
+# --- git credentials --------------------------------------------------------
+#
+# The bot PAT must never appear in a URL. Carrying it as basic-auth userinfo in
+# front of the host is what GitGuardian blocks on this repo, and it was right
+# to: a credential in a remote URL is written into `.git/config`, echoed by
+# `git remote -v`, copied into reflogs, printed in git's own error output, and
+# carried in argv for the `git push <url>` form. Assembling the same URL from
+# parts hid it from nothing. The credential is supplied out of band by a git
+# credential helper instead, so every artefact above carries the LITERAL string
+# `$TOKEN` and git expands it, in the helper's own shell, only at credential
+# time.
+
+BOT_TOKEN = "BOT-PAT-VALUE-not-a-real-credential"
+REPO = "szymonrychu/tatara-helmfile"
+PLAIN_URL = f"https://github.com/{REPO}.git"
+
+
+@pytest.fixture
+def checkout(tmp_path):
+    """A checkout whose origin still points somewhere else, like the runner's."""
+    d = tmp_path / "checkout"
+    d.mkdir()
+    subprocess.run(["git", "init", "-q", str(d)], check=True)
+    subprocess.run(
+        ["git", "-C", str(d), "remote", "add", "origin", "https://example.invalid/x"],
+        check=True,
+    )
+    return d
+
+
+def test_authenticate_origin_sets_the_plain_url_and_keeps_the_token_out_of_it(
+    stub, checkout
+):
+    r = stub.run(
+        f'cd "{checkout}"\nauthenticate_origin {REPO}\n', env={"TOKEN": BOT_TOKEN}
+    )
+    assert r.returncode == 0, r.stderr
+    url = subprocess.run(
+        ["git", "-C", str(checkout), "remote", "get-url", "origin"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert url == PLAIN_URL
+    assert BOT_TOKEN not in (checkout / ".git" / "config").read_text(encoding="utf-8")
+
+
+def test_the_helper_hands_git_the_token_from_the_environment(stub, checkout):
+    """Out of band or not, it still has to actually authenticate."""
+    r = stub.run(
+        f'cd "{checkout}"\nauthenticate_origin {REPO}\n', env={"TOKEN": BOT_TOKEN}
+    )
+    assert r.returncode == 0, r.stderr
+    filled = subprocess.run(
+        ["git", "-C", str(checkout), "credential", "fill"],
+        input="protocol=https\nhost=github.com\n\n",
+        capture_output=True,
+        text=True,
+        check=True,
+        env={
+            **os.environ,
+            "TOKEN": BOT_TOKEN,
+            # Only the repo-local helper may answer; a developer's global
+            # osxkeychain/store helper would otherwise mask a broken one.
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
+            "GIT_TERMINAL_PROMPT": "0",
+        },
+    ).stdout
+    assert "username=x-access-token" in filled
+    assert f"password={BOT_TOKEN}" in filled
+
+
+def test_the_helper_is_local_to_the_repo(stub, checkout):
+    """The ARC runner is shared; a --global helper would outlive the job."""
+    r = stub.run(
+        f'cd "{checkout}"\nauthenticate_origin {REPO}\n', env={"TOKEN": BOT_TOKEN}
+    )
+    assert r.returncode == 0, r.stderr
+    assert "credential" in (checkout / ".git" / "config").read_text(encoding="utf-8")
+
+
+def test_clone_authed_clones_the_plain_url_and_carries_the_helper_into_the_clone(stub):
+    """mode=bump clones a DIFFERENT repo, then fetches and pushes against it.
+
+    So the helper has to be in the new repo's config, not just in the clone
+    command: `git clone --config` applies it before the initial fetch AND
+    leaves it behind for every later fetch/push.
+    """
+    stub.stub_git()
+    r = stub.run(f"clone_authed {REPO} /nonexistent/work\n", env={"TOKEN": BOT_TOKEN})
+    assert r.returncode == 0, r.stderr
+    argv = stub.git_argv()
+    assert PLAIN_URL in argv
+    assert "--config credential.helper=" in argv
+    assert BOT_TOKEN not in argv, "the credential must never reach argv"
+
+
+def test_no_git_url_anywhere_carries_a_credential():
+    """The static guard: neither the lib nor the action may reintroduce it."""
+    for path in (LIB, ACTION):
+        text = path.read_text(encoding="utf-8")
+        assert "authed_remote" not in text, f"{path.name} still builds a credential URL"
+        for lineno, line in enumerate(text.splitlines(), 1):
+            for word in line.split("#", 1)[0].split():
+                if "://" not in word:
+                    continue
+                host = word.split("://", 1)[1].split("/", 1)[0]
+                assert "@" not in host and "TOKEN" not in word, (
+                    f"{path.name}:{lineno}: credential in a URL: {word}"
+                )
 
 
 # --- mode=tag: the semver label read ----------------------------------------

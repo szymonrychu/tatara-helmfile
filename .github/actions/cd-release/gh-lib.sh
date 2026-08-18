@@ -17,14 +17,39 @@
 GH_RETRY_ATTEMPTS="${GH_RETRY_ATTEMPTS:-5}"
 GH_RETRY_SLEEP="${GH_RETRY_SLEEP:-5}"
 
-# authed_remote <owner/name> - the git URL that authenticates as the bot PAT in
-# $TOKEN. Assembled from parts rather than written as one literal: a
-# `https://user:token@host` string on a changed line trips secret scanners even
-# when the credential is a shell variable, and one composer beats the same
-# literal copied to three call sites.
-authed_remote() {
-  local scheme="https://" user="x-access-token" host="github.com"
-  printf '%s%s:%s@%s/%s.git\n' "$scheme" "$user" "${TOKEN}" "$host" "$1"
+# Git authentication for the bot PAT in $TOKEN.
+#
+# The credential is handed to git OUT OF BAND, by a credential helper, and the
+# remote URL stays the plain `https://github.com/<owner>/<name>.git`.
+#
+# It used to ride in the URL itself, as basic-auth userinfo in front of the
+# host - written first as one literal, then assembled from parts to get past
+# the scanner. Both forms were wrong. GitGuardian blocked the PR on both, and
+# it was right to: a credential in a remote URL is persisted into
+# `.git/config`, echoed by `git remote -v`, copied into reflogs, printed
+# verbatim in git's own transport errors, and carried in argv for the
+# `git push <url>` form. Five places a token leaks from, and composing the
+# string removed none of them.
+#
+# The helper keeps it in the process environment only. The config, the URLs and
+# argv all carry the LITERAL string `$TOKEN`; git expands it in the helper's own
+# shell, at credential time, on the one code path that needs it.
+GIT_CRED_HELPER='!f() { echo username=x-access-token; echo "password=$TOKEN"; }; f'
+
+# authenticate_origin <owner/name> - point THIS checkout's origin at the plain
+# URL and attach the helper to this repo alone. `--local` matters: the ARC
+# runner is shared, and a `--global` helper would outlive the job.
+authenticate_origin() {
+  git remote set-url origin "https://github.com/$1.git" &&
+    git config --local credential.helper "$GIT_CRED_HELPER"
+}
+
+# clone_authed <owner/name> <dir> - clone a DIFFERENT repo than the checkout.
+# `git clone --config` applies the helper before the initial fetch AND leaves it
+# in the new repo's config, so the clone and every later fetch/push against it
+# authenticate through the same path.
+clone_authed() {
+  git clone --config "credential.helper=$GIT_CRED_HELPER" "https://github.com/$1.git" "$2"
 }
 
 # retry <label> <cmd...> - run cmd until it succeeds, up to GH_RETRY_ATTEMPTS,
@@ -32,8 +57,10 @@ authed_remote() {
 # safe inside a command substitution; diagnostics go to stderr. Returns the
 # last attempt's status.
 #
-# <label> is what gets logged - never argv, which carries the token in the
-# authenticated git URLs this also wraps.
+# <label> is what gets logged - never argv. Nothing this wraps carries the
+# credential any more (it comes from the helper above, not from a URL), but the
+# rule stands: argv is exactly where a token reappears the moment anyone puts
+# basic-auth userinfo back into a remote.
 retry() {
   local label="$1"; shift
   local attempt=1 rc=0 out=""
