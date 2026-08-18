@@ -432,13 +432,37 @@ def test_authenticate_origin_sets_the_plain_url_and_keeps_the_token_out_of_it(
     assert BOT_TOKEN not in (checkout / ".git" / "config").read_text(encoding="utf-8")
 
 
-def test_the_helper_hands_git_the_token_from_the_environment(stub, checkout):
-    """Out of band or not, it still has to actually authenticate."""
-    r = stub.run(
-        f'cd "{checkout}"\nauthenticate_origin {REPO}\n', env={"TOKEN": BOT_TOKEN}
+OTHER_TOKEN = "WRONG-IDENTITY-from-a-global-helper"
+
+
+@pytest.fixture
+def rival_global_helper(tmp_path):
+    """A global credential helper for github.com, already installed.
+
+    NOT hypothetical. `credential.helper` is MULTI-VALUED: git runs system,
+    then global, then local, and stops at the FIRST helper that answers with
+    both a username and a password. `--local` is last in that list, not an
+    override. The agent image ships exactly this shape (values/project-mtg/
+    common.yaml calls it "the wrapper's global GIT_TOKEN credential helper"),
+    and the ARC runner is shared.
+
+    The userinfo URL this replaced was immune by accident - a URL carrying user
+    AND password is already a complete credential, so git consults no helper at
+    all - so the masking arrived with the helper, and the test that should have
+    caught it pointed GIT_CONFIG_GLOBAL at /dev/null instead.
+    """
+    cfg = tmp_path / "gitconfig-global"
+    cfg.write_text(
+        "[credential]\n"
+        '\thelper = "!f() { echo username=x-access-token; '
+        'echo password=%s; }; f"\n' % OTHER_TOKEN,
+        encoding="utf-8",
     )
-    assert r.returncode == 0, r.stderr
-    filled = subprocess.run(
+    return cfg
+
+
+def fill(checkout, global_cfg=os.devnull, token=BOT_TOKEN):
+    return subprocess.run(
         ["git", "-C", str(checkout), "credential", "fill"],
         input="protocol=https\nhost=github.com\n\n",
         capture_output=True,
@@ -446,16 +470,88 @@ def test_the_helper_hands_git_the_token_from_the_environment(stub, checkout):
         check=True,
         env={
             **os.environ,
-            "TOKEN": BOT_TOKEN,
-            # Only the repo-local helper may answer; a developer's global
-            # osxkeychain/store helper would otherwise mask a broken one.
-            "GIT_CONFIG_GLOBAL": os.devnull,
+            "TOKEN": token,
+            "GIT_CONFIG_GLOBAL": str(global_cfg),
             "GIT_CONFIG_SYSTEM": os.devnull,
             "GIT_TERMINAL_PROMPT": "0",
         },
     ).stdout
+
+
+def test_the_helper_hands_git_the_token_from_the_environment(stub, checkout):
+    """Out of band or not, it still has to actually authenticate."""
+    r = stub.run(
+        f'cd "{checkout}"\nauthenticate_origin {REPO}\n', env={"TOKEN": BOT_TOKEN}
+    )
+    assert r.returncode == 0, r.stderr
+    filled = fill(checkout)
     assert "username=x-access-token" in filled
     assert f"password={BOT_TOKEN}" in filled
+
+
+def test_a_global_helper_does_not_mask_the_bot_pat(stub, checkout, rival_global_helper):
+    """The push must authenticate as the bot, or the pin lands as nobody.
+
+    A masked helper is not a loud failure: the rival answers, the push
+    authenticates as some other identity, and what comes back is a 403 that
+    looks exactly like a token-scope problem.
+    """
+    r = stub.run(
+        f'cd "{checkout}"\nauthenticate_origin {REPO}\n',
+        env={"TOKEN": BOT_TOKEN, "GIT_CONFIG_GLOBAL": str(rival_global_helper)},
+    )
+    assert r.returncode == 0, r.stderr
+    filled = fill(checkout, rival_global_helper)
+    assert f"password={BOT_TOKEN}" in filled
+    assert OTHER_TOKEN not in filled
+
+
+def test_authenticate_origin_drops_the_checkout_credential_header(stub, checkout):
+    """actions/checkout persists `http.<url>.extraheader: AUTHORIZATION: basic`.
+
+    Git sends it on every request, so the server answers 200/403 rather than
+    401 - and git only consults a credential helper on a 401. The header wins
+    over the helper without either of them failing, and the push lands as the
+    default GITHUB_TOKEN, read-only wherever default workflow permissions are
+    restrictive.
+    """
+    subprocess.run(
+        [
+            "git", "-C", str(checkout), "config", "--local",
+            "http.https://github.com/.extraheader",
+            "AUTHORIZATION: basic Zm9vOmJhcg==",
+        ],
+        check=True,
+    )
+    r = stub.run(
+        f'cd "{checkout}"\nauthenticate_origin {REPO}\n', env={"TOKEN": BOT_TOKEN}
+    )
+    assert r.returncode == 0, r.stderr
+    got = subprocess.run(
+        ["git", "-C", str(checkout), "config", "--local", "--get-regexp", "^http\\."],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    assert "extraheader" not in got, got
+
+
+@pytest.mark.parametrize("how", ["empty", "unset"])
+def test_an_absent_token_fails_loudly_instead_of_authenticating_as_nobody(
+    stub, checkout, how
+):
+    """`set -u` cannot catch this: bash never dereferences $TOKEN.
+
+    The helper emits `password=` and git accepts that as a COMPLETE credential,
+    so the push 403s with nothing in the log pointing at the missing input.
+    Composite actions do not enforce `required: true` at runtime.
+    """
+    prelude = "unset TOKEN\n" if how == "unset" else ""
+    r = stub.run(
+        f'cd "{checkout}"\n{prelude}authenticate_origin {REPO}\n', env={"TOKEN": ""}
+    )
+    assert r.returncode != 0
+    assert "TOKEN" in r.stderr
 
 
 def test_the_helper_is_local_to_the_repo(stub, checkout):
@@ -481,6 +577,19 @@ def test_clone_authed_clones_the_plain_url_and_carries_the_helper_into_the_clone
     assert PLAIN_URL in argv
     assert "--config credential.helper=" in argv
     assert BOT_TOKEN not in argv, "the credential must never reach argv"
+
+
+def test_clone_authed_resets_the_helper_list_before_adding_its_own(stub):
+    """Same multi-valued trap as authenticate_origin, one config layer down.
+
+    `git clone --config` writes the CLONE's local config, which is still last
+    behind the runner's global helper. An empty value first resets the list.
+    """
+    stub.stub_git()
+    r = stub.run(f"clone_authed {REPO} /nonexistent/work\n", env={"TOKEN": BOT_TOKEN})
+    assert r.returncode == 0, r.stderr
+    argv = stub.git_argv()
+    assert "--config credential.helper= --config credential.helper=!f()" in argv, argv
 
 
 def test_no_git_url_anywhere_carries_a_credential():

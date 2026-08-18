@@ -36,20 +36,65 @@ GH_RETRY_SLEEP="${GH_RETRY_SLEEP:-5}"
 # shell, at credential time, on the one code path that needs it.
 GIT_CRED_HELPER='!f() { echo username=x-access-token; echo "password=$TOKEN"; }; f'
 
+# require_token - the helper emits `password=` when $TOKEN is empty, and git
+# takes that as a COMPLETE credential: the push then 403s having authenticated
+# as nobody, with nothing in the log pointing at the missing input. `set -u`
+# cannot catch it, because bash never dereferences $TOKEN - only the helper's
+# own shell does, at credential time. Composite actions do not enforce
+# `required: true` at runtime either.
+require_token() {
+  if [ -z "${TOKEN:-}" ]; then
+    echo "::error::cd-release: TOKEN is empty - the bot PAT never reached the action." >&2
+    return 1
+  fi
+}
+
 # authenticate_origin <owner/name> - point THIS checkout's origin at the plain
-# URL and attach the helper to this repo alone. `--local` matters: the ARC
-# runner is shared, and a `--global` helper would outlive the job.
+# URL and make the bot PAT the credential git actually uses for it.
+#
+# Two things have to be cleared first, and both win SILENTLY - no failure, just
+# the wrong identity and a 403 that reads like a scope problem:
+#
+#   1. `credential.helper` is MULTI-VALUED. Git runs system, then global, then
+#      local, and stops at the FIRST helper that answers with a username AND a
+#      password. `--local` is LAST in that list, not an override, so a global
+#      github.com helper - the agent image ships one - masks this one entirely.
+#      An empty value resets the list; that is git's documented idiom.
+#   2. `actions/checkout` with the default persist-credentials writes
+#      `http.https://github.com/.extraheader = AUTHORIZATION: basic ...`. Git
+#      sends it on every request, so the server answers 200/403 rather than
+#      401 - and git only consults a credential helper on a 401. The header
+#      beats the helper, and the push lands as the default GITHUB_TOKEN, which
+#      is read-only wherever default workflow permissions are restrictive.
+#
+# The userinfo URL this replaced was immune to (1) by accident: a URL carrying
+# both user and password IS a complete credential, so git consulted no helper
+# at all. It lost to (2) just the same.
+#
+# `--local` still matters for what it does control: the ARC runner is shared,
+# and a `--global` helper would outlive the job.
 authenticate_origin() {
-  git remote set-url origin "https://github.com/$1.git" &&
-    git config --local credential.helper "$GIT_CRED_HELPER"
+  require_token || return 1
+  git remote set-url origin "https://github.com/$1.git" || return 1
+  # Absent is the normal case and answers 5; a config that cannot be written
+  # fails loudly on the --add below.
+  git config --local --unset-all "http.https://github.com/.extraheader" || true
+  git config --local --unset-all credential.helper || true
+  git config --local --add credential.helper "" || return 1
+  git config --local --add credential.helper "$GIT_CRED_HELPER" || return 1
 }
 
 # clone_authed <owner/name> <dir> - clone a DIFFERENT repo than the checkout.
 # `git clone --config` applies the helper before the initial fetch AND leaves it
 # in the new repo's config, so the clone and every later fetch/push against it
-# authenticate through the same path.
+# authenticate through the same path. The empty value first is the same list
+# reset as above: a fresh clone's local config is still last behind the runner's
+# global helper. No extraheader to clear here - nothing has checked this one out.
 clone_authed() {
-  git clone --config "credential.helper=$GIT_CRED_HELPER" "https://github.com/$1.git" "$2"
+  require_token || return 1
+  git clone --config credential.helper= \
+    --config "credential.helper=$GIT_CRED_HELPER" \
+    "https://github.com/$1.git" "$2"
 }
 
 # retry <label> <cmd...> - run cmd until it succeeds, up to GH_RETRY_ATTEMPTS,
