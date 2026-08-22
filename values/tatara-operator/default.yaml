@@ -225,14 +225,39 @@ s3SecretName: "tatara-conversations"
 pushMetricsAllowedPrefixes: "wrapper_,agent_,memory_,ingest_,ccw_,tatara_wrapper_,analyzer_,scip_,semantic_,llm_,push_"
 
 # Token-budget admission gate (issue #189) in claudeSubscription mode: gate on the
-# wrapper-reported Claude 5h/weekly usage percentages (agents read their own usage %
-# from Claude API responses and report it back). Pause proactive work (brainstorm/
-# implement/review) at 50% and incident work at 80% of the window, resuming on reset.
-# claudeSubscription mode needs NO /api/oauth/usage OAuth token - the shared fleet
-# `claude setup-token` lacks the user:profile scope that endpoint requires (403), so
-# usageEnabled stays false and this wrapper-reported path is used instead. No
-# customWindow inputs (resetSchedule/window/tokenLimit) are needed in this mode.
+# shared Claude subscription's 5h and weekly usage windows, pausing proactive work
+# (brainstorm/implement/review) and, at the higher tier, incident work.
+#
+# HOW THE DATA ACTUALLY ARRIVES: each agent pod runs a silent claude statusLine
+# command (cc-statusline) that forwards the rate_limits block claude passes it to
+# the wrapper over loopback; the wrapper attaches the newest snapshot to its
+# turn-complete callback; the operator parks it on that Task's status.accountUsage;
+# and the operator LEADER folds the newest snapshot across all Tasks into one
+# fleet-wide store the dispatcher reads. The account is shared by every Project, so
+# the snapshot is fleet-wide by construction, never per-Project.
+#
+# The /api/oauth/usage poller stays OFF (usageEnabled unset): the shared fleet
+# `claude setup-token` lacks the user:profile scope that endpoint requires (403),
+# and activating it needs an interactive `claude login` plus a sops secret. The
+# statusline feed above works without it.
+#
+# No customWindow inputs (resetSchedule/window/tokenLimit) are needed in this mode.
+#
+# Per-window thresholds: the 5h window is the tighter, faster-moving one, so it
+# gets more headroom before proactive work pauses; the weekly window moves slowly
+# and exhausting it costs days, so it pauses earlier. The mode-wide 50/80 pair
+# stays as the fallback for anything the per-window pairs leave unset. The
+# emergency tier (where incident work also stops) sits well above the proactive
+# tier so incidents keep flowing after routine work is held.
 tokenBudgetEnabled: true
 tokenBudgetMode: "claudeSubscription"
 tokenBudgetProactivePercent: 50
 tokenBudgetEmergencyPercent: 80
+tokenBudgetFiveHourProactivePercent: 80
+tokenBudgetFiveHourEmergencyPercent: 92
+tokenBudgetWeeklyProactivePercent: 75
+tokenBudgetWeeklyEmergencyPercent: 88
+# A snapshot older than this stops governing and the gate FAILS OPEN, which is
+# why TataraAccountUsageFeedDead alerts on it. 90m comfortably exceeds any healthy
+# gap between turn completions.
+tokenBudgetMaxSnapshotAge: "90m"
