@@ -258,6 +258,33 @@ tokenBudgetFiveHourEmergencyPercent: 92
 tokenBudgetWeeklyProactivePercent: 75
 tokenBudgetWeeklyEmergencyPercent: 88
 # A snapshot older than this stops governing and the gate FAILS OPEN, which is
-# why TataraAccountUsageFeedDead alerts on it. 90m comfortably exceeds any healthy
-# gap between turn completions.
+# why TataraAccountUsageFeedDead alerts on it.
+#
+# 90m does NOT "comfortably exceed any healthy gap between turn completions", as
+# this comment used to claim. A snapshot reaches the store only on a
+# turn-complete callback, so the binding quantity is the gap BETWEEN completions
+# across the fleet, and this fleet's queue is empty for hours at a time:
+# measured 2026-08-23, tatara_account_usage_snapshot_age_seconds{source="wrapper"}
+# was 30719s against this 5400s bound and tatara_account_usage_gate_ready read 0
+# in 40 of 56 samples over 14h. The number stays 90m on purpose - it bounds
+# snapshot QUALITY relative to the 5h window it governs, and raising it is
+# exactly what makes an expiring snapshot a bad estimate of burn. The fix for
+# the coverage gap is an out-of-band refresh between turns, not a bigger
+# constant. Derivation in internal/budget/budget.go.
 tokenBudgetMaxSnapshotAge: "90m"
+
+# THE OPERATOR'S OWN PrometheusRule NEEDS THE SAME SELECTOR LABEL the memory one
+# does (memoryMonitoring.additionalLabels above, and the mechanism is documented
+# there). Without it this cluster's ruleSelector never loads the chart's
+# `tatara-loop` group, so all ~20 operator alerts are AUTHORED AND NEVER
+# EVALUATED - including the TataraOperatorDown deadman, and
+# TataraAccountUsageFeedDead, which is the compensating control that makes the
+# token-budget fail-open above defensible at all. Verified 2026-08-23 before the
+# fix: ALERTS held no Tatara* series and prometheus_rule_group_rules listed only
+# pvc-backup, cluster-cleanup and etcd. The chart bakes no default for this
+# because charts are cluster-agnostic (rule 14). These rules carry only
+# `severity`, so they route cluster-side to Alertmanager and not to the tatara
+# incident-Task webhook: lighting them up spawns no agent pod.
+prometheusRule:
+  additionalLabels:
+    release: prometheus
