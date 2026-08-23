@@ -57,20 +57,20 @@ WRAPPER_IMAGE_RE = re.compile(
 # CROSS-REPO CONTRACT. The producer that rewrites this pin lives in another
 # repo (tatara-agent-skills .github/workflows/release.yml) and cannot see this
 # regex; this regex cannot see its pins array. `(\S+)$` is the load-bearing
-# part: it accepts exactly the shape SKILLS_PIN_VALUE_TEMPLATE below writes -
-# one line, one non-whitespace token, nothing trailing. Relaxing it to `(.*)$`
+# part: it accepts exactly the shape the producer's value_template writes - one
+# line, one non-whitespace token, nothing trailing. Relaxing it to `(.*)$`
 # would silently swallow a trailing comment and ship it as the pin value.
-# test_check_pin_coverage.py exercises both halves against the real values
-# files, so a reformat of a pin site reds THIS repo's lint instead of
-# hard-erroring apply-pins.py with count==0 mid-release in tatara-agent-skills.
+#
+# The PRODUCER half of every such contract - the pin patterns themselves,
+# including the SKILLS_PIN_PATTERN/SKILLS_PIN_VALUE_TEMPLATE pair that used to
+# live here - is in .github/scripts/test_cd_pin_contract.py. It executes all
+# thirteen pins that write into this repo against the real files, and feeds
+# eleven of the thirteen back through the regexes below (the two
+# values/tatara-operator/default.yaml image pins have no consumer-side regex
+# here). So a reformat of a pin site reds THIS repo's lint instead of
+# hard-erroring apply-pins.py mid-release in a producer repo, after its tag is
+# already pushed.
 SKILLS_REF_RE = re.compile(r"^\s*skillsRef: (\S+)$", re.MULTILINE)
-
-# The producer's half of that contract, kept here so the test above can run it.
-# Must stay byte-identical (modulo the JSON/YAML escaping of the workflow file)
-# with the `pins:` array of the `Bump tatara-helmfile skillsRef` step in
-# tatara-agent-skills .github/workflows/release.yml.
-SKILLS_PIN_PATTERN = r"^(\s*skillsRef: ).*$"
-SKILLS_PIN_VALUE_TEMPLATE = r"\1{{version}}"
 OPERATOR_TAG_RE = re.compile(r'^\s*tag: "(\S+)"$', re.MULTILINE)
 
 # A concrete pin is a vX.Y.Z tag. "main", "latest", a branch name or an

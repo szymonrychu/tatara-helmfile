@@ -53,16 +53,21 @@ def _normalize_backrefs(template):
 SITES_SHOWN = 10
 
 
-def _match_sites(content, pattern):
-    """`line N: <text>` for every line a match starts on, capped."""
+def _match_sites(content, pattern, count):
+    """`line N: <text>` for the first SITES_SHOWN lines a match starts on.
+
+    Stops at the cap rather than materialising every match: a pathological
+    pattern on a large file has tens of thousands, and `content.count` rescans
+    the prefix each time.
+    """
     lines = content.split("\n")
     sites = []
     for m in re.finditer(pattern, content, flags=re.MULTILINE):
+        if len(sites) == SITES_SHOWN:
+            sites.append(f"    ... and {count - SITES_SHOWN} more")
+            break
         n = content.count("\n", 0, m.start()) + 1
         sites.append(f"    line {n}: {lines[n - 1]}")
-    if len(sites) > SITES_SHOWN:
-        extra = len(sites) - SITES_SHOWN
-        sites = sites[:SITES_SHOWN] + [f"    ... and {extra} more"]
     return sites
 
 
@@ -73,14 +78,24 @@ def _arity_error(content, pattern, path, expect, count):
             f"pin pattern matched nothing{where} (expected {expect}): {pattern!r}. "
             "The pin drifted: the site was renamed, reformatted or removed."
         )
-    # count>1 (or a short count under an `expect` opt-in): the pattern is not
-    # the whole story, so name the sites it was about to rewrite.
-    head = (
-        f"pin pattern matched {count} times{where}, expected {expect}: {pattern!r}. "
-        "Narrow the pattern, or declare the fan-in with \"expect\": "
-        f"{count} in the producer's pins array."
-    )
-    return "\n".join([head] + _match_sites(content, pattern))
+    head = f"pin pattern matched {count} times{where}, expected {expect}: {pattern!r}. "
+    if count > expect:
+        # The pattern alone does not say WHICH sites were about to be
+        # rewritten, so name them.
+        head += (
+            "Narrow the pattern, or - if every site listed below really is "
+            f'meant to move together - declare the fan-in with "expect": {count}.'
+        )
+    else:
+        # A declared fan-in that lost a site. Lowering `expect` to match would
+        # make the remaining sites green and leave the missing one unpinned
+        # forever, so say the opposite out loud.
+        head += (
+            f"A pin declaring \"expect\": {expect} lost a site. Restore it, or "
+            "drop the pin - do NOT lower `expect` to match, that leaves the "
+            "missing site silently unpinned."
+        )
+    return "\n".join([head] + _match_sites(content, pattern, count))
 
 
 def apply_pin(content, pattern, value_template, new_value, path=None, expect=1):

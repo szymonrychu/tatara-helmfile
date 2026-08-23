@@ -82,7 +82,21 @@ def test_pin_expect_two_rejects_a_single_site():
     with pytest.raises(ValueError) as excinfo:
         apply_pin('memoryImage: "old"\n', r'^\S*Image: ".*"$', 'x: "{{version}}"',
                   "v9.9.9", expect=2)
-    assert "expected 2" in str(excinfo.value)
+    msg = str(excinfo.value)
+    assert "expected 2" in msg
+    # A declared fan-in that lost a site must NOT be told to lower `expect`:
+    # that is green CI over a permanently unpinned site.
+    assert "do NOT lower `expect`" in msg
+    assert '"expect": 1' not in msg
+
+
+def test_over_match_message_caps_the_listed_sites():
+    content = "".join(f'x{i}Image: "old"\n' for i in range(25))
+    with pytest.raises(ValueError) as excinfo:
+        apply_pin(content, r'^\S*Image: ".*"$', 'x: "{{version}}"', "v9.9.9")
+    msg = str(excinfo.value)
+    assert msg.count("    line ") == 10
+    assert "... and 15 more" in msg
 
 
 def test_apply_pins_honours_the_expect_key():

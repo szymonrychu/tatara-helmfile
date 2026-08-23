@@ -10,11 +10,6 @@ _spec = importlib.util.spec_from_file_location("check_pin_coverage", SCRIPT)
 guard = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(guard)
 
-APPLY_PINS = REPO_ROOT / ".github" / "actions" / "cd-release" / "apply-pins.py"
-_ap_spec = importlib.util.spec_from_file_location("apply_pins", APPLY_PINS)
-apply_pins_mod = importlib.util.module_from_spec(_ap_spec)
-_ap_spec.loader.exec_module(apply_pins_mod)
-
 
 def facts(wrapper=None, skills=None, releases=None, operator_tag="v1.35.1"):
     """A clean three-project fleet; each kwarg overrides one axis."""
@@ -260,44 +255,11 @@ def test_real_repo_agent_pins_are_all_concrete():
 
 # --- the cross-repo skillsRef pin contract (#397) ---
 #
-# The producer half of these two constants lives in
-# tatara-agent-skills/.github/workflows/release.yml. Nothing in that repo can
-# see SKILLS_REF_RE, and nothing here can see the pins array, so the contract
-# between them is enforced by exercising both halves against the real files.
-
-
-def test_skills_pin_pattern_rewrites_every_real_values_file():
-    """The producer's pin pattern must match each real pin site exactly once.
-
-    apply-pins.py treats a pattern matching nothing as a hard error, so a
-    reformat of a skillsRef line that slipped past review would fail the whole
-    deploy train in tatara-agent-skills' release run rather than here.
-    """
-    for project in ("project-tatara", "project-infrastructure", "project-mtg"):
-        text = (REPO_ROOT / "values" / project / "common.yaml").read_text(
-            encoding="utf-8"
-        )
-        rewritten = apply_pins_mod.apply_pin(
-            text, guard.SKILLS_PIN_PATTERN, guard.SKILLS_PIN_VALUE_TEMPLATE, "v9.9.9"
-        )
-        assert (
-            guard.extract_one(
-                guard.SKILLS_REF_RE, rewritten, project, "skillsRef"
-            )
-            == "v9.9.9"
-        )
-
-
-def test_skills_pin_rewrite_preserves_indentation_and_is_idempotent():
-    text = "project:\n  spec:\n    agent:\n      skillsRef: v2.4.0\n"
-    once = apply_pins_mod.apply_pin(
-        text, guard.SKILLS_PIN_PATTERN, guard.SKILLS_PIN_VALUE_TEMPLATE, "v2.5.0"
-    )
-    assert once == "project:\n  spec:\n    agent:\n      skillsRef: v2.5.0\n"
-    twice = apply_pins_mod.apply_pin(
-        once, guard.SKILLS_PIN_PATTERN, guard.SKILLS_PIN_VALUE_TEMPLATE, "v2.5.0"
-    )
-    assert twice == once
+# The PRODUCER half of this contract - the pin pattern and value_template that
+# tatara-agent-skills hands to cd-release - moved to
+# .github/scripts/test_cd_pin_contract.py, which runs it and the other twelve
+# against the real files rather than just this one. What stays here is the
+# CONSUMER half: the regex this repo reads the pin back with.
 
 
 def test_skills_ref_re_rejects_a_trailing_comment_on_the_pin_line():
