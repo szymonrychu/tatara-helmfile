@@ -74,7 +74,7 @@ project:
       # check_pin_coverage.py fails the build if the three diverge, and
       # check_agent_pins() there also refuses this AND the image tag above if
       # either goes floating (main/latest) or absent.
-      skillsRef: v2.6.0
+      skillsRef: v2.7.0
       # 3600s of INACTIVITY is now the STALL PROBE TRIGGER, not a kill
       # deadline (post-O2). The operator anchors on max(turn-started-at,
       # turn-last-activity-at) including subagent activity, and on expiry
