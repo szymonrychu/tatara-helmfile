@@ -3,11 +3,12 @@ description: >-
   Reusable tatara CD primitive. mode=tag cuts the next semver git tag from a
   merged PR's semver:* label; mode=bump pattern-rewrites a parent repo's pin(s)
   and opens a bot-authored auto-merge PR (coalescing into cd/deploy-train for
-  the terminal tatara-helmfile parent).
+  the terminal tatara-helmfile parent); mode=setup installs gh and exports the
+  forge helper lib for a plain workflow that wants neither tag nor bump.
 
 inputs:
   mode:
-    description: tag | bump
+    description: tag | bump | setup
     required: true
   token:
     description: bot PAT (TATARA_CD_TOKEN) for tag push + cross-repo PR creation
@@ -43,6 +44,23 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: validate mode
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+      run: |
+        set -euo pipefail
+        shopt -s inherit_errexit
+        # every accepted mode
+        case "$MODE" in
+          tag|bump|setup) ;;
+          *)
+            echo "::error::cd-release: unknown mode '$MODE'; expected one of tag, bump, setup. An unrecognised mode makes every gated step below false, i.e. a silent green no-op on a step whose job is to propagate a pin." >&2
+            exit 1
+            ;;
+        esac
+        echo "mode: $MODE"
+
     - name: ensure gh CLI
       shell: bash
       run: |
@@ -57,6 +75,23 @@ runs:
         mv "$RUNNER_TEMP/gh_${GH_VER}_linux_amd64/bin/gh" "$RUNNER_TEMP/bin/gh"
         echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
         "$RUNNER_TEMP/bin/gh" --version
+
+    - name: export the forge helper lib
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        shopt -s inherit_errexit
+        # Its own step, deliberately NOT appended to `ensure gh CLI`: that body
+        # early-returns when gh is already on PATH, which is live today -
+        # release.yml invokes this action twice and the second call hits it.
+        lib="$ACTION_PATH/gh-lib.sh"
+        if [ ! -f "$lib" ]; then
+          echo "::error::cd-release: gh-lib.sh not found at $lib" >&2
+          exit 1
+        fi
+        echo "CD_RELEASE_LIB=$lib" >> "$GITHUB_ENV"
 
     - name: cut tag
       id: tag

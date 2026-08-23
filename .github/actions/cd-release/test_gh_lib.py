@@ -21,6 +21,7 @@ So the contract these tests pin is narrow and absolute:
 """
 
 import os
+import re
 import subprocess
 import textwrap
 from pathlib import Path
@@ -719,3 +720,108 @@ def test_the_action_never_swallows_a_forge_read_with_or_true():
             reads_forge = "gh " in code or "git fetch" in code or "git clone" in code
             if reads_forge and any(s in code for s in swallows):
                 raise AssertionError(f"{path.name}: forge read swallowed: {code}")
+
+
+# --- mode validation + lib export ---------------------------------------------
+#
+# mode=setup exists because tatara-claude-code-wrapper's refresh-claude-code
+# cron died 27 runs in a row on `gh: command not found`: the ARC runner image
+# has no gh, and that workflow, unlike release.yml, never went through this
+# action to get it installed. mode=setup runs only the gh install and the lib
+# export, nothing else.
+#
+# The mode validator exists because an unrecognised mode used to be a silent
+# green no-op: `mode: bumpp` makes every `if: inputs.mode == '...'` false, and
+# the step whose whole job is to propagate a version pin reports success having
+# done nothing. Adding a legitimate do-nothing mode (setup) makes that typo
+# indistinguishable from success unless the mode itself is validated.
+
+MODE_CASE_START = "# every accepted mode"
+MODE_CASE_END = 'echo "mode: $MODE"'
+
+
+def mode_case_block():
+    lines = ACTION.read_text(encoding="utf-8").splitlines()
+    starts = [i for i, ln in enumerate(lines) if MODE_CASE_START in ln]
+    assert len(starts) == 1, f"expected one mode case start, found {len(starts)}"
+    ends = [i for i, ln in enumerate(lines) if MODE_CASE_END in ln]
+    assert len(ends) == 1, f"expected one mode echo, found {len(ends)}"
+    return textwrap.dedent("\n".join(lines[starts[0] : ends[0]]))
+
+
+def run_mode_case(stub, mode):
+    return stub.run(mode_case_block() + "\n", env={"MODE": mode})
+
+
+@pytest.mark.parametrize("mode", ["tag", "bump", "setup"])
+def test_every_documented_mode_is_accepted(stub, mode):
+    r = run_mode_case(stub, mode)
+    assert r.returncode == 0, r.stderr
+
+
+def test_an_unrecognised_mode_fails_instead_of_being_a_silent_no_op(stub):
+    """The whole point: before this change, `mode: bumpp` was a silent green no-op."""
+    r = run_mode_case(stub, "bumpp")
+    assert r.returncode != 0
+    assert "bumpp" in (r.stdout + r.stderr)
+
+
+def test_an_empty_mode_is_rejected(stub):
+    r = run_mode_case(stub, "")
+    assert r.returncode != 0
+
+
+def test_every_gated_step_names_a_mode_the_validator_accepts():
+    """Parse both the gated `if:`s and the validator's accepted set out of the
+    file; do not hardcode either list here, or this test cannot catch drift
+    between them.
+    """
+    text = ACTION.read_text(encoding="utf-8")
+    gated = set(re.findall(r"inputs\.mode == '([^']+)'", text))
+    assert gated, "no mode-gated steps found"
+
+    case_match = re.search(r"case\s+\"\$MODE\"\s+in\n(.*?)\n\s*esac", text, re.S)
+    assert case_match, "no case \"$MODE\" in ... esac block found"
+    accepted_match = re.search(r"^\s*([\w]+(?:\|[\w]+)*)\)\s*;;\s*$", case_match.group(1), re.M)
+    assert accepted_match, "no accepted-modes arm found in the case block"
+    accepted = set(accepted_match.group(1).split("|"))
+
+    assert gated <= accepted, f"gated modes {gated} not all in accepted modes {accepted}"
+
+
+def test_the_lib_export_step_is_unconditional():
+    lines = ACTION.read_text(encoding="utf-8").splitlines()
+    starts = [i for i, ln in enumerate(lines) if ln.strip() == "- name: export the forge helper lib"]
+    assert len(starts) == 1, f"expected one export step, found {len(starts)}"
+    i = starts[0]
+    indent = len(lines[i]) - len(lines[i].lstrip())
+    end = len(lines)
+    for j in range(i + 1, len(lines)):
+        ln = lines[j]
+        if ln.strip().startswith("- name:") and (len(ln) - len(ln.lstrip())) == indent:
+            end = j
+            break
+    body = "\n".join(lines[i:end])
+
+    assert "if:" not in body, "the lib export step must not be conditional"
+    assert 'CD_RELEASE_LIB=' in body
+    assert '"$GITHUB_ENV"' in body
+    assert ACTION.read_text(encoding="utf-8").count("CD_RELEASE_LIB=") == 1
+
+
+def test_the_lib_export_is_not_folded_into_the_gh_install_step():
+    """`ensure gh CLI`'s body early-returns when gh is already on PATH, which is
+    live today: release.yml invokes this action twice, and the second call hits
+    it. Folding the export into that body would silently skip it there.
+    """
+    lines = ACTION.read_text(encoding="utf-8").splitlines()
+    starts = [i for i, ln in enumerate(lines) if ln.strip() == "- name: ensure gh CLI"]
+    assert len(starts) == 1
+    i = starts[0]
+    end = len(lines)
+    for j in range(i + 1, len(lines)):
+        if lines[j].strip().startswith("- name:"):
+            end = j
+            break
+    body = "\n".join(lines[i:end])
+    assert "CD_RELEASE_LIB" not in body
