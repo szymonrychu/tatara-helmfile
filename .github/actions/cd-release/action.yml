@@ -21,7 +21,11 @@ inputs:
   pins:
     description: >-
       JSON array of {file, pattern, value_template} describing the pin(s) to
-      rewrite in the parent. All pins are rewritten in ONE commit.
+      rewrite in the parent. All pins are rewritten in ONE commit. Every
+      pattern MUST match its file exactly once - matching nothing and matching
+      more than once are both hard errors. A pin that legitimately targets
+      several sites in one file declares it with an explicit integer `expect`
+      (default 1).
     required: false
     default: "[]"
   new_value:

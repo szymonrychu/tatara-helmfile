@@ -50,6 +50,88 @@ def test_ingester_image_pin_does_not_touch_memory():
     assert "tatara-memory-repo-ingester:v0.2.0" in out
 
 
+def test_pin_matching_two_sites_raises():
+    # re.subn rewrites EVERY match. A pattern broad enough to hit both image
+    # keys must be a hard error, not a silent double rewrite.
+    content = (
+        'memoryImage: "harbor.szymonrichert.pl/containers/tatara-memory:v1.4.0"\n'
+        'ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:v0.2.0"\n'
+    )
+    with pytest.raises(ValueError) as excinfo:
+        apply_pin(content, r'^\S*Image: ".*"$', 'x: "{{version}}"', "v9.9.9",
+                  path="values/tatara-operator/default.yaml")
+    msg = str(excinfo.value)
+    assert "values/tatara-operator/default.yaml" in msg
+    assert "matched 2" in msg
+    # The sites themselves: for count>1 the operator needs to know WHICH lines
+    # were about to be rewritten, which the pattern alone does not say.
+    assert "line 1: memoryImage:" in msg
+    assert "line 2: ingesterImage:" in msg
+
+
+def test_pin_expect_two_accepts_two_sites():
+    content = (
+        'memoryImage: "harbor.szymonrichert.pl/containers/tatara-memory:v1.4.0"\n'
+        'ingesterImage: "harbor.szymonrichert.pl/containers/tatara-memory-repo-ingester:v0.2.0"\n'
+    )
+    out = apply_pin(content, r'^\S*Image: ".*"$', 'x: "{{version}}"', "v9.9.9", expect=2)
+    assert out == 'x: "v9.9.9"\nx: "v9.9.9"\n'
+
+
+def test_pin_expect_two_rejects_a_single_site():
+    with pytest.raises(ValueError) as excinfo:
+        apply_pin('memoryImage: "old"\n', r'^\S*Image: ".*"$', 'x: "{{version}}"',
+                  "v9.9.9", expect=2)
+    assert "expected 2" in str(excinfo.value)
+
+
+def test_apply_pins_honours_the_expect_key():
+    store = {"f": 'aImage: "old"\nbImage: "old"\n'}
+    pins = [{
+        "file": "f",
+        "pattern": r'^\S*Image: ".*"$',
+        "value_template": 'x: "{{version}}"',
+        "expect": 2,
+    }]
+    changed = apply_pins(pins, "v9.9.9", lambda p: store[p], lambda p, d: store.__setitem__(p, d))
+    assert changed == ["f"]
+    assert store["f"] == 'x: "v9.9.9"\nx: "v9.9.9"\n'
+
+
+def test_apply_pins_rejects_a_non_integer_expect():
+    # A JSON typo (`"expect": "2"`) must not silently mean the default of 1.
+    store = {"f": 'aImage: "old"\nbImage: "old"\n'}
+    pins = [{
+        "file": "f",
+        "pattern": r'^\S*Image: ".*"$',
+        "value_template": 'x: "{{version}}"',
+        "expect": "2",
+    }]
+    with pytest.raises(ValueError) as excinfo:
+        apply_pins(pins, "v9.9.9", lambda p: store[p], lambda p, d: store.__setitem__(p, d))
+    assert "expect" in str(excinfo.value)
+
+
+def test_apply_pins_rejects_a_boolean_expect():
+    # bool is an int subclass in python; `"expect": true` must not mean 1.
+    store = {"f": 'aImage: "old"\n'}
+    pins = [{
+        "file": "f",
+        "pattern": r'^\S*Image: ".*"$',
+        "value_template": 'x: "{{version}}"',
+        "expect": True,
+    }]
+    with pytest.raises(ValueError):
+        apply_pins(pins, "v9.9.9", lambda p: store[p], lambda p, d: store.__setitem__(p, d))
+
+
+def test_pin_no_match_names_the_file():
+    with pytest.raises(ValueError) as excinfo:
+        apply_pin("nothing here\n", r"^DOES_NOT_EXIST=.*$", "x={{version}}", "v1.0.0",
+                  path="values/some.yaml")
+    assert "values/some.yaml" in str(excinfo.value)
+
+
 def test_wrapper_image_pin_with_backreference():
     content = "      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:8f3d880\n"
     pattern = r"^(\s*image: )harbor\.szymonrichert\.pl/containers/tatara-claude-code-wrapper:.*$"
