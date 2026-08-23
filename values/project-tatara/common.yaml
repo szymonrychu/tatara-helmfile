@@ -5,10 +5,17 @@ project:
   spec:
     scmSecretRef: tatara-scm
     triggerLabel: tatara
-    # item-4a activation: requires tatara-operator >= the release that ships
-    # Project.spec.autoApproveTataraProposals (CRD field). Do not apply this
-    # chart bump before that operator release is merged and published.
-    autoApproveTataraProposals: true
+    # OFF (tatara-operator#639, which replaced the boolean
+    # autoApproveTataraProposals with this ceiling). tatara is the project whose
+    # changes rewrite the approval gate, the merge corridor and the agent prompts
+    # themselves, so there is no significance at which the platform approving its
+    # own change is acceptable: every self-proposed chain parks at backlog-sweep
+    # until a human comments, and the first non-bot comment releases it.
+    #
+    # It is spelled out rather than omitted because the field defaults to `off`
+    # anyway - the value of writing it is that a future raise is a visible diff
+    # on this line rather than a new key nobody reviews.
+    autoApproveMaxSignificance: "off"
     # Per-repo fan-out: lanes run up to maxConcurrentAgents agents at once across
     # all repos.
     # Realistic steady-state (2026-07-04): full concurrency + brainstorm on, to
