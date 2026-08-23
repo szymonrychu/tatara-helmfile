@@ -5,6 +5,13 @@ project:
   spec:
     scmSecretRef: tatara-scm
     triggerLabel: mtg
+    # The auto-approve SEVERITY CEILING (tatara-operator#639). Unrestricted here:
+    # mtg ships no platform code and no infrastructure - a bad change costs a
+    # revert, not an outage - so there is nothing a maintainer comment buys that
+    # is worth parking every self-proposed chain for. The other four carve-out
+    # axes still hold: bot-authored, marked, and anchor-matching, or no
+    # auto-approval at all.
+    autoApproveMaxSignificance: major
     # 3, not 2. maxLivePods is left unset, so the operator clamps the live
     # ceiling to maxConcurrentAgents-1 (api/v1alpha1.MaxLivePods) - at 2 that
     # is a ceiling of ONE, and mtg was the only project where it bound.
