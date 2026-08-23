@@ -206,10 +206,14 @@ memoryMonitoring:
 # The 9 conditions the chart alerted on that no Grafana rule covered were moved
 # in the same change: 6 ported into tatara-observability alerts/ and 3 waived
 # against the rules that already replaced them
-# (tatara-observability scripts/chart_alert_waivers.txt).
-# tatara-observability scripts/check_chart_alert_parity.py now fails CI if the
+# (tatara-observability scripts/alert_plane_waivers.txt).
+# tatara-observability scripts/check_alert_plane_parity.py now fails CI if the
 # chart ever alerts on a condition no Grafana rule watches, so this stays
-# reconciled without anyone having to remember it.
+# reconciled without anyone having to remember it. Renamed from
+# check_chart_alert_parity.py in tatara-observability#120, which widened it from
+# this chart alone to three planes: this one, tatara-memory's chart, and
+# tatara-operator's memoryAlertRules Go set. Waiver keys are plane-qualified
+# now, so this chart's are prefixed `operator-chart:`.
 #
 # The chart is NOT edited: it bakes no default on purpose (cluster-agnostic,
 # rule 14) and remains correct for a cluster whose Alertmanager actually has a
