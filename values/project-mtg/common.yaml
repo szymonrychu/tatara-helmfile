@@ -53,7 +53,7 @@ project:
       modelByKind:
         clarify: claude-opus-5
         review: claude-opus-5
-      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.7.1
+      image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.7.2
       maxTaskTokens: 2000000
       permissionMode: bypassPermissions
       # CD-MANAGED as of #397 by the skills release, mtg included - the earlier
