@@ -65,8 +65,14 @@ project:
         clarify: claude-opus-5
         review: claude-opus-5
         brainstorm: claude-fable-5
+        # upgrade (deck refreshes) on claude-fable-5 at medium effort by owner
+        # decision (2026-08-25): accuracy of the refresh judgment over raw
+        # grinding; the refresh contract already forces run-time enumeration
+        # and per-deck coverage, so the model's job is judgment.
+        upgrade: claude-fable-5
       effortByKind:
         brainstorm: medium
+        upgrade: medium
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.7.2
       maxTaskTokens: 2000000
       permissionMode: bypassPermissions
