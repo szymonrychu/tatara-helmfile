@@ -12,28 +12,35 @@ project:
     # axes still hold: bot-authored, marked, and anchor-matching, or no
     # auto-approval at all.
     autoApproveMaxSignificance: major
-    # 3, not 2. maxLivePods is left unset, so the operator clamps the live
-    # ceiling to maxConcurrentAgents-1 (api/v1alpha1.MaxLivePods) - at 2 that
-    # is a ceiling of ONE, and mtg was the only project where it bound.
+    # 5 concurrent agents with an EXPLICIT live-pod ceiling of 3 below.
     #
-    # Measured 2026-08-09: one implement Task held the single slot for over an
-    # hour while two others, whose agents had asked real questions and whose
-    # human answers were already queued as pendingEvents, were refused re-entry
-    # every 30s with decline=no-live-room. The reply is the lowest-priority
-    # thing in the project under a ceiling of 1, because the ceiling is only
-    # enforced on the unpark path and not on the mint path - new work walks
-    # past it while an answered conversation cannot get back in.
+    # The history that set these: maxLivePods used to be unset, so the operator
+    # clamped the live ceiling to maxConcurrentAgents-1 (api/v1alpha1.MaxLivePods),
+    # and at maxConcurrentAgents: 2 that was a ceiling of ONE. Measured
+    # 2026-08-09: one implement Task held the single slot for over an hour while
+    # two others, whose agents had asked real questions and whose human answers
+    # were already queued as pendingEvents, were refused re-entry every 30s with
+    # decline=no-live-room. The reply is the lowest-priority thing in the project
+    # under a ceiling of 1, because the ceiling is only enforced on the unpark
+    # path and not on the mint path - new work walks past it while an answered
+    # conversation cannot get back in.
     #
-    # 3 gives a ceiling of 2: one long-running deck task plus one resuming
-    # conversation. Deliberately not raised to the 5 that project-tatara and
-    # project-infrastructure run - this project's mandate is one deck at a
-    # time, and the point here is to stop starving answered conversations, not
-    # to widen concurrency.
+    # maxLivePods: 3 is what fixes that: a refresh pass in flight, a second deck
+    # being worked, and one resuming conversation. maxConcurrentAgents: 5 sits
+    # above it so the pod ceiling is the binding one and is stated rather than
+    # derived. Refresh coverage does NOT depend on these numbers - see the
+    # upgrade cron note at the foot of this file.
     maxConcurrentAgents: 5
     # OWNER DECISION 2026-08-09: explicit 3 (not the maxConcurrentAgents-1=4
     # clamp, not the operator's unset default of 2).
     maxLivePods: 3
-    maxOpenTasks: 3
+    # 6, the operator default, stated explicitly (a kubebuilder default is
+    # applied on WRITE and never reaches an already-existing Project CR). At 3
+    # it equalled maxOpenUpgrades, so on refresh days the deck passes consumed
+    # the entire project task budget and the issueScan sweep refused every mint
+    # with capHit(maxOpenTasks) - refreshes starved issue intake for the whole
+    # morning. 6 leaves intake room alongside the upgrade lanes below.
+    maxOpenTasks: 6
     # 4h pod life: the repo's longest Workflow research pipeline runs ~3h in a
     # single turn; the 3600 default TTL-stopped it mid-run.
     agentPodTTLSeconds: 14400
@@ -157,20 +164,34 @@ project:
           talks about a dependency, a version or a hop, read deck, metagame and
           card change.
 
-          EVERY deck gets a refresh pass every week, not one deck per week. The
-          cron fires once per deck on Tuesday morning and each Task takes ONE
-          deck, so across the morning the whole repo is covered. Your job is to
-          take a deck nobody else has taken yet - not to decide which single
-          deck most deserves attention.
+          ENUMERATE THE DECKS AT RUN TIME. There is no fixed roster, no slot
+          count and no per-deck limit anywhere in this configuration. `ls -d
+          decks/*/` in the mtg-decks checkout is the ONLY authoritative list of
+          what needs covering; a deck added or deleted in the repo changes your
+          workload, never this config. Never work from a deck list you read in a
+          prompt, a comment, a previous handoff or your own memory.
+
+          EVERY deck gets a refresh pass each cycle - not one deck, not a fixed
+          N. Start from the full enumeration, then subtract what live siblings
+          have already claimed; whatever is left is yours, and it may be more
+          than one deck. Work them one at a time inside this Task rather than
+          leaving a deck behind, and if you run out of budget before the list is
+          empty, say in your merge request body exactly which decks you covered
+          and which are still uncovered, by name. A deck silently skipped is the
+          failure this contract exists to prevent.
 
           Claim before you work. Call `task_context` with `index=true` first,
           read the merge request titles of the live sibling `upgrade` Tasks, and
-          take a deck none of them names. Then name the deck you took in your
-          OWN merge request title, early, so the next sibling can see it.
+          take the decks none of them names. Then name the deck you are on in
+          your OWN merge request title, early, so the next sibling can see it.
           Nothing dedupes this for you: the operator does not know what a deck
           is, and a sibling that has not opened its merge request yet is
           invisible to you. If you genuinely cannot tell what is claimed, prefer
           the deck with the oldest refresh in `git log` over guessing.
+
+          If the enumeration turns up decks this project has never touched, that
+          is a finding worth reporting in the merge request body, not a reason
+          to narrow the pass.
 
           A deck is STALE by the repo's own drift standard - `scripts/meta_state.py
           diff` - and by nothing else. Directory mtime is NOT the standard: a
@@ -180,10 +201,11 @@ project:
           is, up to and including "the decklist holds and only the boarding plan
           moves" - that is a real result, not a non-result.
 
-          If your claimed deck has not drifted, or every deck is already claimed,
-          call `submit_outcome` with `action="declined"` and a `decline_reason`
-          quoting what the diff actually said or naming the sibling that holds
-          the deck. Note the vocabulary: this kind has NO `skip` action (that is
+          If none of the decks left to you has drifted, or every deck the
+          enumeration found is already claimed by a sibling, call
+          `submit_outcome` with `action="declined"` and a `decline_reason`
+          quoting what the diff actually said for each deck you checked, or
+          naming the sibling that holds it. Note the vocabulary: this kind has NO `skip` action (that is
           brainstorm's), only `submitted` and `declined`. A quiet week is three
           declines and that is the correct outcome, but a decline with no
           measurement in it is not.
@@ -324,25 +346,30 @@ project:
         refine:
           schedule: 0 12 * * *
           closedLookbackDays: 30
-        # Weekly deck refresh, Tuesday 07:00 UTC = 09:00 Europe/Warsaw (CEST).
-        # UTC for the reason spelled out on refine above. Tuesday because the
-        # paper-format ban announcements and the weekend result dumps this
-        # project reacts to are both settled by Monday night.
+        # Weekly deck refresh, Tuesday from 07:00 UTC = 09:00 Europe/Warsaw
+        # (CEST). UTC for the reason spelled out on refine above. Tuesday
+        # because the paper-format ban announcements and the weekend result
+        # dumps this project reacts to are both settled by Monday night.
         #
-        # Hour 7 keeps clear of the mtg-decks reingest at 09:58, so a refresh
-        # never races the ingest that feeds its own code-graph reads.
-        # issueScan now fires every 10 minutes rather than on the */4 hours,
-        # so it no longer avoids hour 7 specifically - that is harmless,
-        # though: issueScan and upgrade both mint inside the same serialized
-        # per-Project reconcile, so a coincident tick is never concurrent.
+        # EVERY deck gets a refresh pass each week. THE TICK COUNT IS NOT A DECK
+        # COUNT and must never be tuned to one: the roster lives in the repo
+        # (`ls -d decks/*/`) and the agent enumerates it at run time - see
+        # agent.promptAppendByKind.upgrade above, which requires full coverage
+        # and an explicit named report of anything left uncovered.
         #
-        # EVERY deck gets a refresh pass each week, not one deck per week. The
-        # repo carries three (burn-mono-red, living-end, prison-tron), so the
-        # cron fires three times on Tuesday morning and each tick mints one
-        # Task that claims one not-yet-claimed deck. There is no operator-side
-        # fan-out and none is needed: the tick count IS the fan-out, and the
-        # operator never has to know how many decks exist or what they are
-        # called. Add a fourth deck and add a fourth hour here.
+        # The hours are refresh CAPACITY, deliberately more ticks than the repo
+        # has decks so that adding or deleting a deck needs no change here. A
+        # tick that finds every deck current or claimed declines in seconds and
+        # costs nothing.
+        #
+        # Residual coupling, stated honestly: the operator mints AT MOST ONE
+        # upgrade Task per due tick (UpgradeActivity in
+        # api/v1alpha1/project_types.go; mint path in
+        # internal/controller/projectscan.go), so parallel coverage still comes
+        # from tick frequency rather than from an operator-side fan-out. The
+        # prompt contract is what makes a roster change safe regardless: with
+        # more decks than ticks the pass degrades to "agent covers what it can
+        # and names the rest", not to "a deck is silently skipped".
         #
         # An hour apart, deliberately. Sibling dedup is agent-side and works by
         # reading live sibling Tasks' merge request titles, so a sibling that
@@ -352,23 +379,27 @@ project:
         # which is what keeps the claims distinct. Do not tighten this to
         # minutes without giving the operator a real fan-out primitive.
         #
-        # A week where nothing drifted is a week of three declines, and that is
-        # the correct outcome, not a failure - the prompt requires the drift
+        # A week where nothing drifted is a week of declines, and that is the
+        # correct outcome, not a failure - the prompt requires the drift
         # measurement in the decline reason.
         #
-        # Hour 7 keeps clear of the mtg-decks reingest at 09:58, so a refresh
-        # never races the ingest that feeds its own code-graph reads. Hours 8
-        # and 9 keep that property. issueScan now fires every 10 minutes
-        # rather than on the */4 hours, so this no longer says anything about
-        # issueScan - see the note above.
+        # Hours 7-12 keep clear of the mtg-decks reingest at 09:58 only in the
+        # sense that no tick lands ON it; a long refresh can still overlap the
+        # ingest window, which is tolerable because the ingest is additive.
+        # issueScan fires every 10 minutes rather than on the */4 hours, so
+        # these hours say nothing about issueScan - and both mint inside the
+        # same serialized per-Project reconcile, so a coincident tick is never
+        # concurrent.
         #
         # maxOpenUpgrades is EXPLICIT rather than the operator's default: a
         # kubebuilder default is applied on WRITE and never retroactively, so
-        # it would never reach this already-existing Project. 3 is one lane per
-        # deck, so a slow refresh never starves the next tick's claim.
+        # it would never reach this already-existing Project. 4 is a LANE cap,
+        # not a deck cap - it bounds how much refresh work is open at once
+        # while leaving maxOpenTasks: 6 room for issue intake. Raising or
+        # lowering it changes throughput, never coverage.
         upgrade:
-          schedule: 0 7,8,9 * * 2
-          maxOpenUpgrades: 3
+          schedule: 0 7-12 * * 2
+          maxOpenUpgrades: 4
 
 repositories:
   - name: mtg-decks
