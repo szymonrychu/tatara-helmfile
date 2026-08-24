@@ -57,9 +57,16 @@ project:
       # downgrade them; both inherit project-default effort: high. Unlike
       # project-tatara/project-infrastructure, mtg does NOT tier these down to
       # sonnet - deck research is the reasoning-heaviest work on the platform.
+      # brainstorm runs claude-fable-5 at medium effort by owner decision
+      # (2026-08-24): it orchestrates subagents rather than doing the reading
+      # itself (see its promptAppendByKind block), so the main loop needs
+      # judgment, not long-context grinding.
       modelByKind:
         clarify: claude-opus-5
         review: claude-opus-5
+        brainstorm: claude-fable-5
+      effortByKind:
+        brainstorm: medium
       image: harbor.szymonrichert.pl/containers/tatara-claude-code-wrapper:v3.7.2
       maxTaskTokens: 2000000
       permissionMode: bypassPermissions
@@ -150,6 +157,18 @@ project:
           bootstrap: brainstorm proposes, implement executes, and this cycle
           produces a proposal, not research output. Reading files, `git log`,
           and the spellslinger MCP tools are all fine and expected.
+
+          WORK THROUGH SUBAGENTS. Run this cycle as an orchestrator: write
+          small, self-contained briefs and dispatch subagents (the Agent
+          tool) to do the reading, measuring, and MCP probing for you - one
+          subagent per independent question, each told exactly what to
+          inspect and what to return. Keep your own context for judging
+          their reports, deciding what is worth proposing, and composing the
+          issue. Be careful with token usage: a few focused subagents, never
+          a broad fan-out, and no subagent for a question one file read
+          answers. The proposal you file must still be your own synthesis,
+          citing the evidence your subagents brought back by file and
+          number.
 
           Only if NOTHING in any of the four categories qualifies, call
           `submit_outcome` with `action="skip"` and a `reason` that states,
