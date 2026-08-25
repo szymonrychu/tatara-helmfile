@@ -47,6 +47,27 @@ project:
     # investigation window. Reserve 3 concurrent slots for the alert class.
     queue:
       alertCapacity: 3
+    # The counterweight to the mtg carve-out (2026-08-25). The weekly account
+    # budget is one pool shared by all three projects; raising mtg's ceiling to
+    # 95 spends out of the same 14% that was left. infrastructure's normal-class
+    # work is self-proposed drift and dependency churn - it is the pool's largest
+    # consumer and the most deferrable - so it stops at 50 rather than the
+    # fleet-wide 75. At the 86% observed when this was written that holds every
+    # infrastructure implement/upgrade/brainstorm event immediately.
+    #
+    # ONLY the proactive half moves. weeklyEmergencyPercent is deliberately left
+    # unset so it keeps inheriting the operator-wide 88: this project owns the
+    # cluster, and an incident here must still admit. (ResolvePercents clamps
+    # emergency up to proactive, never down, so a lower proactive can never cut
+    # incidents off early.)
+    #
+    # `enabled` and `mode` are restated for the same reason as in project-mtg:
+    # a present tokenBudget block has its Enabled read at face value, not
+    # inherited.
+    tokenBudget:
+      enabled: true
+      mode: claudeSubscription
+      weeklyProactivePercent: 50
     agent:
       # Per-kind tiering (token-conservation component 1): project-wide fallback
       # is Opus/high; only clarify+review drop to Sonnet with low/medium
